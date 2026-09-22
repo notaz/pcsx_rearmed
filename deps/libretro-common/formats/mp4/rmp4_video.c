@@ -20,10 +20,12 @@
  * ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
-/* MP4 video-to-image glue: rmp4 demuxer + rvp8/rvp9 decoders exposed
- * through the still-image and streaming-animation contracts that
- * image_transfer.c dispatches on (see rmp4_video.h).  The structure
- * mirrors rwebm_video.c with the demuxer swapped. */
+/* MP4 video-to-image glue: rmp4 demuxer + rh264/rh265/rvp8/rvp9
+ * decoders exposed through the still-image and streaming-animation
+ * contracts that image_transfer.c dispatches on (see rmp4_video.h).
+ * The structure mirrors rwebm_video.c with the demuxer swapped and
+ * H.264 (avc1, with its avcC extradata) and H.265 (hvc1/hev1, with
+ * hvcC) added to the codec dispatch. */
 
 #include <stdlib.h>
 #include <string.h>
@@ -41,11 +43,14 @@
 #include <formats/rvp8.h>
 #ifdef HAVE_RVP9
 #include <formats/rvp9.h>
-/* The 10-bit / HDR I420->RGB blits are shared (image_hdr_blit.c) but still
- * declared in rwebm_video.h; the implementation is demuxer-independent. */
-#include <formats/rwebm_video.h>
 #endif
+/* The 10-bit / HDR I420->RGB blits are shared (image_hdr_blit.c) but still
+ * declared in rwebm_video.h; the implementation is demuxer-independent.
+ * Included outside the HAVE_RVP9 guard because the H.265 Main10 arm of
+ * the render switch uses the same blits regardless of rvp9. */
+#include <formats/rwebm_video.h>
 #include <formats/rh264.h>
+#include <formats/rh265.h>
 #include <formats/rmp4_video.h>
 
 /* Per-packet timestamps are pre-scanned at open so every frame's display
@@ -65,6 +70,7 @@ struct rmp4_video_stream
    rvp9_dec    *vp9;
 #endif
    rh264_video *h264;
+   rh265_video *h265;
    uint32_t    *frame;      /* width * height ABGR words              */
    int64_t     *ts;         /* pre-scanned packet timestamps (ns)     */
    int          ts_count;   /* entries stored in ts                   */
@@ -76,7 +82,7 @@ struct rmp4_video_stream
     * rmp4_video_stream_render and never happens at all for frames a
     * caller passes over with rmp4_video_stream_skip (this replaces
     * the old seek-only 'catchup' blit suppression). */
-   int          rndr_kind;     /* 0 none, 1 vp8, 2 vp9, 3 h264       */
+   int          rndr_kind;     /* 0 none, 1 vp8, 2 vp9, 3 h264, 4 h265 */
    int          rndr_vp9_show; /* fbs index of the vp9 picture       */
    int          wait_key;   /* a reference failed; hold out for a key */
    int          track;      /* index of the chosen video track        */
@@ -466,6 +472,16 @@ static bool rmp4_video_stream_open_decoder(rmp4_video_stream_t *s)
                   t->codec_private_size);
          return true;
       }
+      case RMP4_CODEC_H265:
+      {
+         const rmp4_track *t = rmp4_get_track(s->demux, s->track);
+         if (!(s->h265 = rh265_video_open()))
+            return false;
+         if (t && t->codec_private && t->codec_private_size)
+            rh265_video_set_extradata(s->h265, t->codec_private,
+                  t->codec_private_size);
+         return true;
+      }
       default:
          break;
    }
@@ -492,6 +508,11 @@ static void rmp4_video_stream_close_decoder(rmp4_video_stream_t *s)
       rh264_video_close(s->h264);
       s->h264 = NULL;
    }
+   if (s->h265)
+   {
+      rh265_video_close(s->h265);
+      s->h265 = NULL;
+   }
 }
 
 /* ------------------------------------------------------------------ */
@@ -508,7 +529,8 @@ static void rmp4_video_stream_close_decoder(rmp4_video_stream_t *s)
  * one-shot behaviour. */
 
 static rmp4_video_stream_t *rmp4_video_stream_open_begin(
-      const uint8_t *buf, size_t len, size_t avail, int *need_more)
+      const uint8_t *buf, size_t len, size_t avail, int *need_more,
+      size_t *need_lo, size_t *need_hi)
 {
    rmp4_video_stream_t *s;
    const rmp4_track *trk = NULL;
@@ -522,7 +544,8 @@ static rmp4_video_stream_t *rmp4_video_stream_open_begin(
    if (!(s = (rmp4_video_stream_t*)calloc(1, sizeof(*s))))
       return NULL;
 
-   if (!(s->demux = rmp4_open_memory_avail(buf, len, avail, need_more)))
+   if (!(s->demux = rmp4_open_memory_avail(buf, len, avail, need_more,
+         need_lo, need_hi)))
       goto fail;
 
    /* Pick the first video track whose codec we can decode. */
@@ -540,6 +563,7 @@ static rmp4_video_stream_t *rmp4_video_stream_open_begin(
           && t->codec != RMP4_CODEC_VP9
 #endif
           && t->codec != RMP4_CODEC_H264
+          && t->codec != RMP4_CODEC_H265
          )
          continue;
       s->track  = i;
@@ -635,7 +659,8 @@ rmp4_video_stream_t *rmp4_video_stream_open(const uint8_t *buf,
 {
    rmp4_video_stream_t *s;
 
-   if (!(s = rmp4_video_stream_open_begin(buf, len, len, NULL)))
+   if (!(s = rmp4_video_stream_open_begin(buf, len, len, NULL,
+         NULL, NULL)))
       return NULL;
    rmp4_video_stream_scan_step(s, 0);
    if (rmp4_video_stream_open_finish(s) != 0)
@@ -647,13 +672,15 @@ rmp4_video_stream_t *rmp4_video_stream_open(const uint8_t *buf,
 }
 
 rmp4_video_stream_t *rmp4_video_stream_open_avail(const uint8_t *buf,
-      size_t len, size_t avail, int *need_more)
+      size_t len, size_t avail, int *need_more,
+      size_t *need_lo, size_t *need_hi)
 {
    rmp4_video_stream_t *s;
 
    if (need_more)
       *need_more = 0;
-   if (!(s = rmp4_video_stream_open_begin(buf, len, avail, need_more)))
+   if (!(s = rmp4_video_stream_open_begin(buf, len, avail, need_more,
+         need_lo, need_hi)))
       return NULL;
    /* The pre-scan reads the moov sample tables (no media bytes), so
     * once the open itself succeeded it always completes. */
@@ -738,6 +765,7 @@ static int rmp4_video_decode_packet(rmp4_video_stream_t *s,
        && !s->vp9
 #endif
        && !s->h264
+       && !s->h265
       )
       return -1;
 #ifdef HAVE_RVP9
@@ -816,6 +844,37 @@ static int rmp4_video_decode_packet(rmp4_video_stream_t *s,
       s->rndr_kind = 3;
       return 1;
    }
+   if (s->codec == RMP4_CODEC_H265)
+   {
+      /* rh265 reconstructs Main-profile pictures (intra, P and B with
+       * display reordering), handing pictures out in display order.
+       * Anything it still cannot handle (tiles, 4:2:2) is
+       * skipped rather than aborting the stream, holding the last good
+       * picture until the next key frame restarts the prediction
+       * chain.  A key frame that fails to decode is a real error. */
+      int dec;
+      if (s->wait_key && !pkt->keyframe)
+      {
+         s->disp_idx++;  /* the sample's presentation slot is gone */
+         return 0;
+      }
+      dec = rh265_video_decode(s->h265, pkt->data, pkt->size);
+      if (dec < 0)
+      {
+         if (pkt->keyframe)
+            return -1;
+         s->wait_key = 1;
+         return 0;
+      }
+      s->wait_key = 0;
+      if (dec == 0)   /* consumed; picture held for display reordering */
+         return 0;
+      /* Planes stay valid until the next decode; defer conversion. */
+      if (!rh265_video_plane(s->h265, 0, NULL, NULL, NULL))
+         return -1;
+      s->rndr_kind = 4;
+      return 1;
+   }
    return -1;
 }
 
@@ -864,6 +923,18 @@ static int rmp4_video_stream_step(rmp4_video_stream_t *s,
       if (rh264_video_plane(s->h264, 0, NULL, NULL, NULL))
       {
          s->rndr_kind = 3;
+         if (duration_ms)
+            *duration_ms = rmp4_video_duration_ms(s, s->disp_idx);
+         s->disp_idx++;
+         return 1;
+      }
+   }
+   if (s->h265 && rh265_video_drain(s->h265) == 0)
+   {
+      s->rndr_kind = 0;   /* the drain replaced the current picture */
+      if (rh265_video_plane(s->h265, 0, NULL, NULL, NULL))
+      {
+         s->rndr_kind = 4;
          if (duration_ms)
             *duration_ms = rmp4_video_duration_ms(s, s->disp_idx);
          s->disp_idx++;
@@ -977,6 +1048,50 @@ const uint32_t *rmp4_video_stream_render(rmp4_video_stream_t *s)
             w = (int)s->width;
          if ((unsigned)h > s->height)
             h = (int)s->height;
+         rmp4_video_blit_yuv(s->frame, s->width,
+               (unsigned)w, (unsigned)h, y, ys, u, v, uvs, s->matrix,
+               (ch < h) ? 1 : 0, s->emit_argb);
+         return s->frame;
+      }
+      case 4:  /* H.265: planes valid until the next decode or drain */
+      {
+         const uint8_t *y, *u, *v;
+         int ys, uvs, w, h, cw, ch;
+         y = rh265_video_plane(s->h265, 0, &ys,  &w,  &h);
+         u = rh265_video_plane(s->h265, 1, &uvs, &cw, &ch);
+         v = rh265_video_plane(s->h265, 2, &uvs, &cw, &ch);
+         if (!y || !u || !v)
+            return NULL;
+         if ((unsigned)w > s->width)
+            w = (int)s->width;
+         if ((unsigned)h > s->height)
+            h = (int)s->height;
+         if (rh265_video_bit_depth(s->h265) == 10)
+         {
+            /* Main10: the plane pointers reference uint16_t samples
+             * with the stride in samples; hand them to the shared
+             * high-bit-depth blits exactly as the VP9 arm does. */
+            if (s->want10)
+            {
+               rwebm_video_blit_i420_10bit(s->frame, s->width,
+                     (unsigned)w, (unsigned)h,
+                     (const uint16_t*)y, ys,
+                     (const uint16_t*)u, (const uint16_t*)v, uvs,
+                     s->matrix, s->transfer, s->range, 0);
+               s->is10 = 1;
+            }
+            else
+               rwebm_video_blit_i420_hbd(s->frame, s->width,
+                     (unsigned)w, (unsigned)h,
+                     (const uint16_t*)y, ys,
+                     (const uint16_t*)u, (const uint16_t*)v, uvs,
+                     s->matrix, s->transfer, s->range, 0,
+                     s->emit_argb ? 0 : 1);
+            return s->frame;
+         }
+         /* rh265 is 4:2:0 only, so the chroma-vertical-shift argument
+          * the H.264 arm derives is always 1 here; keep the same
+          * derivation anyway so the two arms stay textually parallel. */
          rmp4_video_blit_yuv(s->frame, s->width,
                (unsigned)w, (unsigned)h, y, ys, u, v, uvs, s->matrix,
                (ch < h) ? 1 : 0, s->emit_argb);
@@ -1147,8 +1262,11 @@ void rmp4_video_set_avail(rmp4_video_t *mp4, size_t avail)
    mp4->partial = 1;
    if (avail > mp4->len)
       avail = mp4->len;
-   if (avail > mp4->avail)   /* monotonic */
-      mp4->avail = avail;
+   /* An exact store: see rmp4_set_avail.  The bound is "readable
+    * right now"; a windowed feeder lowers it after a loop's rewind,
+    * and a raise-only mirror here would keep handing the stream its
+    * stale high-water mark - reads of decommitted pages one lap in. */
+   mp4->avail = avail;
    if (mp4->stream)
       rmp4_video_stream_set_avail(mp4->stream, mp4->avail);
 }
@@ -1199,7 +1317,7 @@ int rmp4_video_process_image(rmp4_video_t *mp4, void **buf,
             mp4->stream = NULL;
          }
          if (!(mp4->stream = rmp4_video_stream_open_begin(
-               mp4->buf, mp4->len, avail, &need_more)))
+               mp4->buf, mp4->len, avail, &need_more, NULL, NULL)))
             /* The moov is still arriving (or, for a trailing moov or a
              * fragmented movie, most of the file is): wait for more
              * bytes rather than failing. */

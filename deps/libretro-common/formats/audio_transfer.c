@@ -20,6 +20,47 @@
  * WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
+/* audio_transfer -- one pull interface over every audio codec in the
+ * tree.  A caller that wants interleaved PCM out of a file it holds in
+ * memory allocates a state for the type (audio_transfer_new), points
+ * it at the bytes (audio_transfer_set_buffer_ptr), starts it, and
+ * pulls with audio_transfer_read_s16 or _read_f32 until
+ * AUDIO_PROCESS_END; audio_transfer_info reports the channel count and
+ * sample rate once decoding has begun.  <formats/audio.h> declares the
+ * API and per-call contracts.
+ *
+ * Each codec sits behind its own arm, compiled in by its HAVE_ flag:
+ * WAV (rwav), FLAC (rflac), Ogg Vorbis (rvorbis), MP3 (rmp3's stream
+ * interface), Opus (ropus), AAC-LC (raac) and tracker modules
+ * (rmodtracker).  The arms own whatever adaptation their codec needs -
+ * walking Ogg pages into packets, feeding rflac and rmp3 their spans,
+ * batching ropus packets, stepping raac access units - so that the
+ * caller sees the same four calls whichever format it was handed.
+ *
+ * Two ways in.  A buffer is the whole file as it sits on disk, and the
+ * type helpers say which arm reads it: audio_transfer_ogg_audio_type
+ * looks inside an Ogg container (Vorbis, Opus or FLAC), and
+ * audio_transfer_webm_audio_type inside a WebM/Matroska one, whose
+ * arms then own an rwebm demuxer internally.  Demuxed input
+ * (audio_transfer_set_demuxed_ptr) is for a caller that already runs a
+ * container demuxer - rmp4 hands the codec setup data and the
+ * elementary-stream packets straight through, so the same Vorbis, FLAC,
+ * Opus and AAC arms serve MP4 audio without a container of their own.
+ *
+ * The remaining calls serve streaming and gapless playback:
+ * audio_transfer_set_avail tells a WebM-backed arm how much of a still
+ * -downloading buffer is valid so it stops at the frontier instead of
+ * misreading truncation as corruption; audio_transfer_set_end_granule
+ * and audio_transfer_set_start_trim carry edge trims (Opus pre-skip
+ * and end granule, MP3 LAME delay/padding) so the decoded stream
+ * starts and ends on the encoded material rather than the codec
+ * priming; audio_transfer_buffer_tell reports consumption for callers
+ * that window their reads; and audio_transfer_seek moves to an
+ * absolute PCM frame, which is how a looping voice returns to the top
+ * without tearing the state down.  A demuxed packet set may also be
+ * re-pointed and grown mid-stream for progressive sources - the
+ * contract for that lives with set_demuxed_ptr in the header. */
+
 #include <stdlib.h>
 #include <string.h>
 
@@ -286,9 +327,23 @@ static size_t audio_transfer_ogg_page(const uint8_t *buf, size_t size,
  *     only what is wider than that.
  *
  * MP3 (rmp3)
- *   Does: buffer input; s16 (quantised by the synthesis filter, no float
- *     round trip) and f32; channels and rate from the first frame; seek
- *     to any PCM frame; buffer_tell, hence windowing.
+ *   Does: buffer input, decoded through rmp3_stream - the buffer is
+ *     consumed incrementally rather than borrowed whole, so
+ *     buffer_tell reports a real frontier, the bytes behind it
+ *     releasable rather than merely read (it leads the decode position
+ *     by at most the stream's reassembly hold, the safe side for a
+ *     feeder); s16 (quantised by the synthesis filter, no float round
+ *     trip) and f32, freely mixed - the stream converts its filter
+ *     state at the switch as the pull API did; channels and rate from
+ *     the first frame's header, read at open by a parse-only walk that
+ *     decodes nothing; seek to any PCM frame, recorded at seek() and
+ *     performed at the following read as a decode forward from the
+ *     head in that read's own pipeline, so the audio after a seek is
+ *     byte-identical to a linear decode's - MP3 frames depend on the
+ *     bit reservoir of their predecessors, so the top is the only
+ *     sample-accurate way in, which is also what the resident decoder
+ *     did, minus its habit of carrying stale synthesis state through
+ *     the rewind.
  *     Length and gapless trim from the Xing/Info or VBRI header in the
  *     first frame: that frame carries no audio but is decoded like any
  *     other, so the priming dropped is its own length plus the encoder
@@ -390,7 +445,8 @@ static size_t audio_transfer_ogg_page(const uint8_t *buf, size_t size,
  *     the last access unit is not handed out and the length info()
  *     reports is the length that comes out; rewind; buffer_tell in ADTS
  *     mode, hence windowing there.
- *     Seeks: every access unit this decoder takes is 1024 frames, so
+ *     Seeks: every access unit this decoder takes yields a fixed
+ *     raac_frame_len() frames, so
  *     the units before the target are counted rather than decoded and
  *     only a pre-roll before it is decoded and dropped.
  *   Does not: reproduce a playthrough exactly across a seek where the
@@ -415,10 +471,13 @@ static size_t audio_transfer_ogg_page(const uint8_t *buf, size_t size,
  *     caller's.  ADTS carries no delay signalling, so
  *     that path forces the trim to 0 and is not gapless.  A lost ADTS
  *     sync is reported as end of stream rather than resynchronised.
- *     Beyond that the scope is raac's: AAC-LC mono/stereo at the
- *     1024-sample frame length, so no HE-AAC (SBR/PS), no Main/SSR/LTP,
- *     no 960-sample frames, no multichannel - and the ADTS header parse
- *     here refuses anything outside that before the decoder is opened.
+ *     Beyond that the scope is raac's: the AAC-LC core (no
+ *     Main/SSR/LTP) with raac's SBR upsampling path, whose doubled
+ *     frame length and output rate this arm follows via
+ *     raac_frame_len()/raac_sample_rate(); parametric stereo payloads
+ *     are skipped (HE-AAC v2 decodes as v1).  The ADTS header parse
+ *     refuses anything outside raac's scope before the decoder is
+ *     opened.
  *
  * Across all arms: no file I/O and no ownership of the encoded bytes -
  * buffers are borrowed and must outlive the decoder (rmodtracker copies
@@ -536,6 +595,14 @@ struct audio_transfer_flac
    const uint8_t *cur;
    size_t         cur_len;
    size_t         cur_off;
+   /* The last empty pull stopped at the resident wall, not the end of
+    * the stream.  Set at the pull that met the wall, cleared when a
+    * packet flows again; audio_transfer_read_* consults it so a stall
+    * surfaces as AUDIO_PROCESS_NEXT with zero frames instead of being
+    * mistaken for end of stream - which a looping mixer voice answers
+    * with a mid-file rewind, and a second stall with releasing the
+    * voice entirely. */
+   uint8_t        wall;
 };
 #endif
 
@@ -560,6 +627,12 @@ struct audio_transfer_vorbis
     * bare packet at a time out of wherever it lives, which is the
     * caller's blob or the demuxer's own view of the caller's buffer.
     * Nothing is copied and nothing is reframed. */
+   /* Plain self-framed .ogg: demuxed incrementally by rvorbis's own
+    * Ogg layer, so what a decode holds is a packet rather than the
+    * file.  handle is borrowed from it - the stream owns the decoder -
+    * and is kept so the queries below need no special case. */
+   rvorbis_stream_t *stream;
+   size_t      stream_off;  /* bytes of the buffer consumed             */
    int         packet;      /* opened with rvorbis_open_packets         */
    size_t      pkt_index;   /* next packet in the caller's blob         */
    size_t      pkt_offset;
@@ -578,11 +651,15 @@ struct audio_transfer_vorbis
 #ifdef HAVE_RWEBM
    rwebm_t    *demux;       /* buffer is WebM audio (.weba)             */
    int         track_idx;
+#endif
    /* Resident prefix of the caller's buffer, 0 when all of it is.  A
     * windowed feeder sets this before start() so the header parse
-    * stays inside the head, and raises it as the window slides. */
+    * stays inside the head, and raises it as the window slides.
+    * Unconditional, like the set_avail case that stores it: gating it
+    * on HAVE_RWEBM made that store - and the wall flag the read tail
+    * consults - a compile error on every RWEBM-less build. */
    size_t      avail;
-#endif
+   uint8_t     wall;        /* see audio_transfer_flac::wall            */
    /* Emission bound, in frames, from a duration the container states;
     * -1 where none does.  Vorbis codes in overlapping blocks, so the
     * last packet decodes past the end of the audio, and only the
@@ -601,8 +678,17 @@ struct audio_transfer_mp3
 {
    const void *data;
    size_t      size;
-   rmp3        handle;   /* dr_mp3 initialises this in place (by value)      */
-   int         inited;   /* handle is embedded, so track init state a flag   */
+   rmp3_stream_t *stream; /* opened decoder, NULL until start() succeeds    */
+   size_t      off;      /* consumption cursor: the compressed frontier      */
+   unsigned    channels; /* from the first frame's header, read at start()   */
+   unsigned    rate;
+   int         eof_sent; /* the stream has been told the tail is all there is */
+   /* Recorded rather than done: an MP3 seek is a decode forward from
+    * the head, and which pipeline it decodes in belongs to the read
+    * that follows, so the output after a seek is byte-identical to a
+    * linear decode in that read's own format.  Same shape as the Opus
+    * arm's seek_to. */
+   int64_t     seek_to;
    /* Gapless, from the Xing/Info or VBRI header in the first frame.
     * That frame carries no audio but dr_mp3 decodes it like any
     * other, so the priming to drop is its own length plus the
@@ -693,8 +779,10 @@ struct audio_transfer_opus
 #ifdef HAVE_RWEBM
    rwebm_t    *demux;        /* buffer is WebM audio (.weba)             */
    int         track_idx;
-   size_t      avail;        /* resident prefix, 0 = all of it           */
 #endif
+   /* Unconditional: see the Vorbis arm's note on these two. */
+   size_t      avail;        /* resident prefix, 0 = all of it           */
+   uint8_t     wall;         /* see audio_transfer_flac::wall            */
    /* A windowed WebM cannot pre-walk the packets for the stream's
     * length, so it accumulates their TOC durations as they play and
     * takes the container's padding off when the block carrying it
@@ -808,6 +896,11 @@ struct audio_transfer_aac
     * track. */
    const uint8_t *buf;
    size_t      buf_size;
+   /* Resident prefix of 'buf' for a windowed caller; 0 means all of
+    * it.  Raised through audio_transfer_set_avail as the window
+    * slides, exactly as the Vorbis and Opus arms take it. */
+   size_t      avail;
+   uint8_t     wall;        /* see audio_transfer_flac::wall             */
    int         adts;        /* buffer is an ADTS stream                  */
    size_t      adts_pos;    /* byte cursor of the next ADTS frame        */
 #ifdef HAVE_RMP4
@@ -842,7 +935,12 @@ struct audio_transfer_aac
     * pipeline with two edges, so that arm keeps its format latch. */
    size_t      pend_frames;
    size_t      pend_pos;
-   float       pend_f32[1024 * 2];
+   /* raac's per-packet output: raac_frame_len() (doubled under SBR)
+    * times the channel count, sized at start when both are known.  A
+    * fixed 1024x2 array here once assumed plain LC and overflowed on
+    * SBR stereo streams. */
+   float      *pend_f32;
+   size_t      pend_cap;   /* capacity in samples */
 };
 #endif
 
@@ -1052,11 +1150,17 @@ static int audio_transfer_vorbis_pull(struct audio_transfer_vorbis *v,
           * apart from end of stream, so the drain returns short and
           * the next call resumes instead of the sound ending. */
          if (r == RWEBM_READ_AGAIN)
+         {
+            v->wall = 1;
             return -2;
+         }
          if (r != 1)
             return 0;
          if (pkt.track == v->track_idx)
+         {
+            v->wall = 0;
             break;
+         }
       }
       *pdata = pkt.data;
       *plen  = (uint32_t)pkt.size;
@@ -1095,6 +1199,161 @@ static int audio_transfer_vorbis_pull(struct audio_transfer_vorbis *v,
  * fresh packet is decoded whenever they run out.  Returns the frames
  * written, short of the ask at end of stream or at the container's
  * stated end. */
+/* Plain-Ogg read: hand rvorbis's demuxer the unconsumed tail of the
+ * buffer and take what it produces.  The compressed cursor is kept here
+ * rather than in the decoder because a windowed feeder reads it, and
+ * because a seek re-points it. */
+
+/* Seek a plain-Ogg stream.  Ogg locates a sample by bisecting on page
+ * granule positions - there is no index - and the decoder cannot read,
+ * so the bisection is driven from here over the buffer.  Each probe
+ * resynchronises at the next page and reports where it landed; the
+ * decode forward from the page before the target is what makes the
+ * landing exact, since a page boundary is the finest position the
+ * container states.
+ *
+ * The frames before the target are decoded and dropped rather than
+ * skipped: a Vorbis packet's output depends on its predecessor's
+ * overlap, so arriving with no history would resume converging on the
+ * playthrough rather than matching it. */
+static bool audio_transfer_vorbis_stream_seek(
+      struct audio_transfer_vorbis *v, uint64_t frame)
+{
+   int16_t  scratch[64 * 8];
+   size_t   lo  = 0;
+   size_t   hi  = v->size;
+   unsigned ch  = (unsigned)((v->channels > 0 && v->channels <= 8)
+         ? v->channels : 8);
+   size_t   cap = sizeof(scratch) / sizeof(scratch[0]) / ch;
+   size_t   start;
+   int      guard;
+
+   if (!v->stream)
+      return false;
+
+   if (!frame)
+   {
+      rvorbis_stream_rewind(v->stream);
+      v->stream_off = 0;
+      v->emitted    = 0;
+      return true;
+   }
+
+   for (guard = 0; lo < hi && guard < 64; guard++)
+   {
+      size_t mid = lo + (hi - lo) / 2;
+      size_t off = mid;
+      int    landed = 0;
+
+      rvorbis_stream_reset(v->stream);
+      while (off < v->size)
+      {
+         size_t rd = 0, wr = 0;
+         int    r;
+         rvorbis_stream_set_out_s16(v->stream, scratch, cap);
+         rvorbis_stream_set_in(v->stream, (const uint8_t*)v->data + off,
+               v->size - off);
+         r = rvorbis_stream_process(v->stream, &rd, &wr);
+         off += rd;
+         if (rvorbis_stream_pos_known(v->stream))
+         {
+            landed = 1;
+            break;
+         }
+         if (r == RVORBIS_STREAM_ERROR || r == RVORBIS_STREAM_EOS)
+            break;
+         if (r == RVORBIS_STREAM_NEED_IN && !rd)
+            break;
+      }
+      if (landed && rvorbis_stream_tell(v->stream) <= frame)
+         lo = mid + 1;
+      else
+         hi = mid;
+   }
+
+   /* One page back from the boundary, so the target is reached by
+    * decoding forward rather than jumped over. */
+   start = (lo > 65307) ? lo - 65307 : 0;
+
+   for (guard = 0; guard < 2; guard++)
+   {
+      size_t off = start;
+      if (start)
+         rvorbis_stream_reset(v->stream);
+      else
+         rvorbis_stream_rewind(v->stream);
+      while (off < v->size)
+      {
+         size_t rd = 0, wr = 0, want = cap;
+         int    r;
+         /* Once the position is known, ask for exactly the distance
+          * left.  Asking for a full scratch instead would step past
+          * the target and land wherever the packet happened to end. */
+         if (rvorbis_stream_pos_known(v->stream))
+         {
+            uint64_t at = rvorbis_stream_tell(v->stream);
+            if (at == frame)
+            {
+               v->stream_off = off;
+               v->emitted    = (int64_t)frame;
+               return true;
+            }
+            if (at > frame)
+               break;           /* landed late: restart from the head */
+            if (frame - at < (uint64_t)want)
+               want = (size_t)(frame - at);
+         }
+         rvorbis_stream_set_out_s16(v->stream, scratch, want);
+         rvorbis_stream_set_in(v->stream, (const uint8_t*)v->data + off,
+               v->size - off);
+         r = rvorbis_stream_process(v->stream, &rd, &wr);
+         off += rd;
+         if (r == RVORBIS_STREAM_ERROR)
+            return false;
+         if (r == RVORBIS_STREAM_EOS)
+            break;
+         if (r == RVORBIS_STREAM_NEED_IN && !rd && !wr)
+            break;
+      }
+      if (!start)
+         break;
+      start = 0;               /* the bisection landed late; take the
+                                * whole stream, which always works */
+   }
+   return false;
+}
+
+static size_t audio_transfer_vorbis_stream_pull(
+      struct audio_transfer_vorbis *v, int s16, int16_t *out16,
+      float *outf, size_t frames)
+{
+   size_t done = 0;
+   if (!v->stream || !frames)
+      return 0;
+   while (done < frames)
+   {
+      size_t rd = 0, wr = 0;
+      int    r;
+      if (s16)
+         rvorbis_stream_set_out_s16(v->stream, out16 + done * (size_t)v->channels,
+               frames - done);
+      else
+         rvorbis_stream_set_out_f32(v->stream, outf + done * (size_t)v->channels,
+               frames - done);
+      rvorbis_stream_set_in(v->stream,
+            (const uint8_t*)v->data + v->stream_off,
+            v->size - v->stream_off);
+      r = rvorbis_stream_process(v->stream, &rd, &wr);
+      v->stream_off += rd;
+      done          += wr;
+      if (r == RVORBIS_STREAM_ERROR || r == RVORBIS_STREAM_EOS)
+         break;
+      if (r == RVORBIS_STREAM_NEED_IN && !rd && !wr)
+         break;   /* the buffer is spent: a feeder must extend it */
+   }
+   return done;
+}
+
 static size_t audio_transfer_vorbis_drain(struct audio_transfer_vorbis *v,
       int s16, int16_t *out16, float *outf, size_t frames)
 {
@@ -1274,8 +1533,17 @@ void audio_transfer_set_output_rate(void *data, enum audio_type_enum type,
 void audio_transfer_set_avail(void *data, enum audio_type_enum type,
       size_t avail)
 {
-#if defined(HAVE_RWEBM) && (defined(HAVE_ROPUS) \
- || defined(HAVE_RVORBIS) || defined(HAVE_RAAC) || defined(HAVE_RFLAC))
+/* Any arm that honours a resident bound needs this compiled, not just
+ * the WebM-backed ones: requiring HAVE_RWEBM here no-opped the whole
+ * function on an RWEBM-less build, so an M4A stream's every bound -
+ * the one at open that keeps rmp4's box walk off unpopulated pages,
+ * and every feeder raise after - was accepted by the caller's guard
+ * (audio_mixer_play_stream admits RAAC+RMP4 alone, and says why) and
+ * silently dropped here.  The demuxer then believed the whole file
+ * readable and handed the decoder packets on pages the window never
+ * committed. */
+#if defined(HAVE_RWEBM) || defined(HAVE_RVORBIS) || defined(HAVE_ROPUS) \
+ || defined(HAVE_RAAC) || defined(HAVE_RFLAC)
    switch (type)
    {
 #ifdef HAVE_RVORBIS
@@ -1285,8 +1553,10 @@ void audio_transfer_set_avail(void *data, enum audio_type_enum type,
          if (!v)
             return;
          v->avail = avail;
+#ifdef HAVE_RWEBM
          if (v->demux)
             rwebm_set_avail(v->demux, avail);
+#endif
          return;
       }
 #endif
@@ -1297,8 +1567,49 @@ void audio_transfer_set_avail(void *data, enum audio_type_enum type,
          if (!op)
             return;
          op->avail = avail;
+#ifdef HAVE_RWEBM
          if (op->demux)
             rwebm_set_avail(op->demux, avail);
+#endif
+         return;
+      }
+#endif
+#ifdef HAVE_RAAC
+      case AUDIO_TYPE_AAC:
+      {
+         struct audio_transfer_aac *ac = (struct audio_transfer_aac*)data;
+         if (!ac)
+            return;
+         ac->avail = avail;
+#ifdef HAVE_RMP4
+         /* MP4: the sample tables address the whole file, so the
+          * demuxer must be told which of those bytes have actually
+          * arrived - it withholds a packet whose extent is past the
+          * bound rather than reading reserved pages. */
+         if (ac->demux)
+            rmp4_set_avail(ac->demux, avail);
+#endif
+#ifdef HAVE_RWEBM
+         if (ac->wdemux)
+            rwebm_set_avail(ac->wdemux, avail);
+#endif
+         return;
+      }
+#endif
+#ifdef HAVE_RFLAC
+      case AUDIO_TYPE_FLAC:
+      {
+         /* The FLAC arm was absent from this switch entirely, so the
+          * mixer's FLAC lane in voice_set_avail called through to a
+          * default: break - a windowed WEBA-FLAC voice kept whatever
+          * bound its demuxer captured at open, forever. */
+         struct audio_transfer_flac *fl = (struct audio_transfer_flac*)data;
+         if (!fl)
+            return;
+#ifdef HAVE_RWEBM
+         if (fl->demux)
+            rwebm_set_avail(fl->demux, avail);
+#endif
          return;
       }
 #endif
@@ -1581,6 +1892,89 @@ static int audio_transfer_mp3_gapless(const uint8_t *b, size_t len,
 #endif
 
 #ifdef HAVE_RMP3
+/* Drain 'frames' frames out of the stream in one of the two pipelines,
+ * feeding it the unconsumed tail of the buffer as it asks.  The
+ * compressed cursor is kept here rather than in the decoder because a
+ * windowed feeder reads it, and because a seek re-points it.  Returns
+ * the frames written, short of the ask at end of stream. */
+static size_t audio_transfer_mp3_pull(struct audio_transfer_mp3 *m,
+      int s16, int16_t *o16, float *of, size_t frames)
+{
+   size_t done = 0;
+   if (!m->stream || !frames)
+      return 0;
+   while (done < frames)
+   {
+      size_t rd = 0, wr = 0;
+      int    r;
+      if (s16)
+         rmp3_stream_set_out_s16(m->stream,
+               o16 + done * (size_t)m->channels, frames - done);
+      else
+         rmp3_stream_set_out_f32(m->stream,
+               of + done * (size_t)m->channels, frames - done);
+      rmp3_stream_set_in(m->stream,
+            (const uint8_t*)m->data + m->off, m->size - m->off);
+      r = rmp3_stream_process(m->stream, &rd, &wr);
+      m->off += rd;
+      done   += wr;
+      if (r == RMP3_STREAM_ERROR || r == RMP3_STREAM_END)
+         break;
+      if (r == RMP3_STREAM_NEED_IN && m->off >= m->size)
+      {
+         /* A frame must be presented whole, so the tail of the stream
+          * sits in the hold waiting for a window that will never fill;
+          * this is what says the short tail is all there is.  Latched
+          * until a seek resets the stream, and once declared the
+          * stream answers END when it is spent - it no longer asks
+          * for input past EOF, so this branch runs at most once. */
+         rmp3_stream_set_eof(m->stream);
+         m->eof_sent = 1;
+      }
+   }
+   return done;
+}
+
+/* Restart the stream and decode forward to @frame, discarding, in the
+ * pipeline of the read that asked - which is what makes the output
+ * after the seek byte-identical to a linear decode's.  MP3 frames
+ * depend on the bit reservoir of their predecessors, so decoding from
+ * the top is the only sample-accurate way in.  Frame numbers here are
+ * of the played audio; the priming sits before frame 0 and is part of
+ * the distance.  Returns the frame reached, or < 0 if the stream ends
+ * first. */
+static int64_t audio_transfer_mp3_seek_to(struct audio_transfer_mp3 *m,
+      int64_t frame, int s16)
+{
+   /* Somewhere to throw the frames walked past.  On the stack, and one
+    * union rather than two arrays: these were a pair of function-local
+    * statics, 24 KiB of BSS of which only ever half was in use, and
+    * shared by every context.  audio_mixer runs up to
+    * AUDIO_MIXER_MAX_VOICES at once, so two MP3 streams priming in the
+    * same callback wrote over each other's sink.  Small because it is
+    * only a sink - the loop below iterates until the distance is gone. */
+   union { int16_t s16[256]; float f32[256]; } skip;
+   uint64_t left = (uint64_t)frame + m->start_trim;
+   unsigned ch   = m->channels ? m->channels : 1;
+
+   rmp3_stream_reset(m->stream);
+   m->off      = 0;
+   m->eof_sent = 0;
+   while (left)
+   {
+      size_t cap  = (sizeof(skip.s16) / sizeof(skip.s16[0])) / ch;
+      size_t want = (left < (uint64_t)cap) ? (size_t)left : cap;
+      size_t n    = audio_transfer_mp3_pull(m, s16,
+            skip.s16, skip.f32, want);
+      if (!n)
+         return -1;                /* the stream ends before the target */
+      left -= n;
+   }
+   m->trim_left = 0;
+   m->emitted   = frame;
+   return frame;
+}
+
 /* Read past the priming and stop at the padding.  The trim is dropped
  * by decoding it and throwing it away - there is nowhere else for it
  * to go, the frames being coded - and the bound is what the tag says
@@ -1588,23 +1982,15 @@ static int audio_transfer_mp3_gapless(const uint8_t *b, size_t len,
 static size_t audio_transfer_mp3_read(struct audio_transfer_mp3 *m,
       int s16, int16_t *o16, float *of, size_t frames)
 {
-   unsigned ch = m->handle.channels ? m->handle.channels : 1;
    size_t   got;
-   /* Somewhere to throw the primed frames.  On the stack, and one
-    * union rather than two arrays: these were a pair of function-local
-    * statics, 24 KiB of BSS of which only ever half was in use, and
-    * shared by every context.  audio_mixer runs up to
-    * AUDIO_MIXER_MAX_VOICES at once, so two MP3 streams priming in the
-    * same callback wrote over each other's sink.  Small because it is
-    * only a sink - the loop below iterates until the trim is gone. */
    union { int16_t s16[256]; float f32[256]; } skip;
+   unsigned ch = m->channels ? m->channels : 1;
    while (m->trim_left)
    {
-      size_t cap  = (size_t)256 / ch;
+      size_t cap  = (sizeof(skip.s16) / sizeof(skip.s16[0])) / ch;
       size_t want = (m->trim_left < cap) ? (size_t)m->trim_left : cap;
-      size_t n    = s16
-         ? (size_t)rmp3_read_s16(&m->handle, (uint64_t)want, skip.s16)
-         : (size_t)rmp3_read_f32(&m->handle, (uint64_t)want, skip.f32);
+      size_t n    = audio_transfer_mp3_pull(m, s16,
+            skip.s16, skip.f32, want);
       if (!n)
       {
          m->trim_left = 0;         /* stream ended inside the priming */
@@ -1620,8 +2006,7 @@ static size_t audio_transfer_mp3_read(struct audio_transfer_mp3 *m,
       if ((int64_t)frames > left)
          frames = (size_t)left;
    }
-   got = s16 ? (size_t)rmp3_read_s16(&m->handle, (uint64_t)frames, o16)
-             : (size_t)rmp3_read_f32(&m->handle, (uint64_t)frames, of);
+   got = audio_transfer_mp3_pull(m, s16, o16, of, frames);
    m->emitted += (int64_t)got;
    return got;
 }
@@ -1655,10 +2040,23 @@ static int audio_transfer_flac_next(struct audio_transfer_flac *fl)
       rwebm_packet pkt;
       for (;;)
       {
-         if (rwebm_read_packet(fl->demux, &pkt) != 1)
+         int r = rwebm_read_packet(fl->demux, &pkt);
+         /* The resident wall is not the end of the stream.  The pull
+          * still reports "no chunk" - nothing here consumed anything,
+          * so the retry is exact - but the wall flag lets the read
+          * surface the difference instead of ending the sound. */
+         if (r == RWEBM_READ_AGAIN)
+         {
+            fl->wall = 1;
+            return 0;
+         }
+         if (r != 1)
             return 0;
          if (pkt.track == fl->track_idx)
+         {
+            fl->wall = 0;
             break;
+         }
       }
       fl->cur     = pkt.data;
       fl->cur_len = pkt.size;
@@ -1869,7 +2267,7 @@ static uint32_t audio_transfer_flac_seek_to(struct audio_transfer_flac *fl,
  * rvorbis whole; anything else has to be filtered. */
 static int audio_transfer_ogg_survey(const uint8_t *b, size_t size,
       uint32_t *serial, int *nstreams, int *chained, int64_t *total,
-      int *mismatch)
+      int *mismatch, int64_t *first_total)
 {
    uint32_t seen[16];
    uint32_t vser[16];
@@ -1965,6 +2363,10 @@ static int audio_transfer_ogg_survey(const uint8_t *b, size_t size,
       for (i = 0; i < nv; i++)
          *total += vgran[i];
    }
+   /* The first link's length on its own, which is what plays when the
+    * links disagree and only it can be played. */
+   if (first_total)
+      *first_total = nv ? vgran[0] : 0;
    return found;
 }
 
@@ -2332,11 +2734,12 @@ bool audio_transfer_start(void *data, enum audio_type_enum type)
             int      nstreams = 0, chained = 0;
             int64_t  gtotal = 0;
             int      isvorbis, mismatch = 0;
+            int64_t  gfirst = 0;
             if (!v->data)
                return false;
             isvorbis = audio_transfer_ogg_survey((const uint8_t*)v->data,
                   v->size, &ser, &nstreams, &chained, &gtotal,
-                  &mismatch);
+                  &mismatch, &gfirst);
             /* One logical bitstream is an ordinary .ogg and goes to
              * rvorbis whole, which is the path every such file has
              * always taken.  More than one and it cannot: rvorbis has
@@ -2376,11 +2779,35 @@ bool audio_transfer_start(void *data, enum audio_type_enum type)
             }
             else
             {
-               v->handle = rvorbis_open_memory(
-                     (const unsigned char*)v->data, (int)v->size,
-                     &err, NULL);
+               /* Feed until the setup headers are in.  That is all the
+                * residency an open needs; the rest of the file is read
+                * as it plays. */
+               size_t rd, wr;
+               if (!(v->stream = rvorbis_stream_new()))
+                  return false;
+               for (;;)
+               {
+                  int r;
+                  rvorbis_stream_set_out_s16(v->stream, NULL, 0);
+                  rvorbis_stream_set_in(v->stream,
+                        (const uint8_t*)v->data + v->stream_off,
+                        v->size - v->stream_off);
+                  r = rvorbis_stream_process(v->stream, &rd, &wr);
+                  v->stream_off += rd;
+                  if (rvorbis_stream_info(v->stream, NULL))
+                     break;
+                  if (r != RVORBIS_STREAM_NEED_IN || !rd
+                        || v->stream_off >= v->size)
+                  {
+                     rvorbis_stream_free(v->stream);
+                     v->stream = NULL;
+                     return false;
+                  }
+               }
+               v->handle = rvorbis_stream_decoder(v->stream);
                if (!v->handle)
                   return false;
+               (void)err;
             }
             /* The granules say what the file plays.  For a chained
              * file that is the sum over its links, which rvorbis
@@ -2394,12 +2821,13 @@ bool audio_transfer_start(void *data, enum audio_type_enum type)
              * stop rather than run the rest at the wrong speed.  The
              * length becomes the first link's granule, which is what
              * comes out. */
-            if (mismatch)
-            {
-               int64_t first = rvorbis_stream_length_in_samples(v->handle);
-               if (first > 0)
-                  v->limit = first;
-            }
+            /* From the survey, not from rvorbis: the handle here is
+             * packet-fed and has no buffer of Ogg pages to walk, so
+             * asking it for a length answered zero and left the bound
+             * at the sum over every link - a length no chained file
+             * with disagreeing links ever reached. */
+            if (mismatch && gfirst > 0)
+               v->limit = gfirst;
          }
          v->channels = rvorbis_get_info(v->handle).channels;
          /* A caller's packet blob is resident by definition, so the
@@ -2522,10 +2950,52 @@ bool audio_transfer_start(void *data, enum audio_type_enum type)
          struct audio_transfer_mp3 *m = (struct audio_transfer_mp3*)data;
          if (!m || !m->data)
             return false;
-         m->inited = (rmp3_init_memory(&m->handle, m->data, m->size) != 0);
-         if (!m->inited)
+         if (!(m->stream = rmp3_stream_new()))
             return false;
-         m->limit = -1;
+         /* Walk parse-only until the first frame is located, which is
+          * where the channel count and rate come from - MPEG audio has
+          * no header ahead of the stream to read them from.  Locating
+          * decodes nothing, so the walk costs a scan; a buffer with no
+          * frame in it fails here, as the resident open did.  Then back
+          * to the head, so the first read decodes from frame one. */
+         m->off      = 0;
+         m->eof_sent = 0;
+         for (;;)
+         {
+            size_t rd = 0, wr = 0;
+            int    r;
+            rmp3_stream_set_out_s16(m->stream, NULL, 0);
+            rmp3_stream_set_in(m->stream,
+                  (const uint8_t*)m->data + m->off, m->size - m->off);
+            r = rmp3_stream_process(m->stream, &rd, &wr);
+            m->off += rd;
+            if (rmp3_stream_info(m->stream, &m->channels, &m->rate))
+               break;
+            if (r == RMP3_STREAM_NEED_IN && m->off >= m->size
+                  && !m->eof_sent)
+            {
+               /* A file shorter than the reassembly hold never fills
+                * it; say the short tail is all there is, so its frame
+                * is still found.  Past this the stream never asks for
+                * input again - a spent stream answers END - so failing
+                * to locate a frame surfaces below, not as a second
+                * NEED_IN. */
+               rmp3_stream_set_eof(m->stream);
+               m->eof_sent = 1;
+               continue;
+            }
+            if (r == RMP3_STREAM_ERROR || r == RMP3_STREAM_END)
+            {
+               rmp3_stream_free(m->stream);
+               m->stream = NULL;
+               return false;
+            }
+         }
+         rmp3_stream_reset(m->stream);
+         m->off      = 0;
+         m->eof_sent = 0;
+         m->seek_to  = -1;
+         m->limit    = -1;
          {
             uint64_t fr = 0, delay = 0;
             if (!audio_transfer_mp3_gapless((const uint8_t*)m->data,
@@ -2878,7 +3348,16 @@ bool audio_transfer_start(void *data, enum audio_type_enum type)
          {
             const rmp4_track *at = NULL;
             int i;
-            if (!(ac->demux = rmp4_open_memory(ac->buf, ac->buf_size)))
+            /* Bounded open: a windowed caller has only a prefix
+             * resident, and the unbounded open walks the box tree to
+             * the end of the file - which for a leading-moov movie is
+             * a reserved-page read past the head.  avail == 0 is the
+             * whole-file caller and behaves exactly as before. */
+            if (!(ac->demux = rmp4_open_memory_avail(ac->buf,
+                        ac->buf_size,
+                        (ac->avail && ac->avail < ac->buf_size)
+                           ? ac->avail : ac->buf_size,
+                        NULL, NULL, NULL)))
                return false;
             ac->track_idx = -1;
             for (i = 0; i < rmp4_num_tracks(ac->demux); i++)
@@ -2899,13 +3378,19 @@ bool audio_transfer_start(void *data, enum audio_type_enum type)
                   at->codec_private_size);
             if (!ac->handle)
                return false;
-            /* the track's edit list carries the encoder delay */
-            ac->start_trim = at->media_skip;
             {
                int64_t ns = rmp4_duration_ns(ac->demux);
                unsigned sr = raac_sample_rate(ac->handle);
                if (ns > 0 && sr)
                   ac->limit = (ns * (int64_t)sr + 500000000) / 1000000000;
+               /* the track's edit list carries the encoder delay in
+                * media-timescale units, i.e. core-rate samples; the
+                * trim is consumed in output frames, which double under
+                * SBR, so convert by the rate ratio */
+               ac->start_trim = at->media_skip;
+               if (at->sample_rate && sr && sr != at->sample_rate)
+                  ac->start_trim = (at->media_skip * sr
+                        + at->sample_rate / 2) / at->sample_rate;
             }
          }
          else
@@ -2918,6 +3403,23 @@ bool audio_transfer_start(void *data, enum audio_type_enum type)
                return false;
          }
          ac->channels    = raac_channels(ac->handle);
+         {
+            size_t need = (size_t)raac_frame_len(ac->handle)
+                  * ac->channels;
+            if (need > ac->pend_cap)
+            {
+               float *nf = (float*)realloc(ac->pend_f32,
+                     need * sizeof(float));
+               if (!nf)
+               {
+                  raac_close(ac->handle);
+                  ac->handle = NULL;
+                  return false;
+               }
+               ac->pend_f32 = nf;
+               ac->pend_cap = need;
+            }
+         }
          ac->trim_left   = ac->start_trim;
          ac->emitted     = 0;
          ac->pkt_index   = 0;
@@ -2956,7 +3458,7 @@ bool audio_transfer_is_valid(void *data, enum audio_type_enum type)
       case AUDIO_TYPE_MP3:
       {
          struct audio_transfer_mp3 *m = (struct audio_transfer_mp3*)data;
-         return (m && m->inited);
+         return (m && m->stream);
       }
 #endif
 #ifdef HAVE_RMODTRACKER
@@ -3067,12 +3569,12 @@ bool audio_transfer_info(void *data, enum audio_type_enum type,
       case AUDIO_TYPE_MP3:
       {
          struct audio_transfer_mp3 *m = (struct audio_transfer_mp3*)data;
-         if (!m || !m->inited)
+         if (!m || !m->stream)
             return false;
          if (channels)
-            *channels     = (unsigned)m->handle.channels;
+            *channels     = m->channels;
          if (rate)
-            *rate         = (unsigned)m->handle.sampleRate;
+            *rate         = m->rate;
          /* From the Xing/Info or VBRI count, less the gapless trim
           * where a LAME tag states one; 0 for a file carrying no
           * such header, which cannot be measured without a walk. */
@@ -3287,11 +3789,15 @@ static int audio_transfer_opus_pull(struct audio_transfer_opus *op,
          int r = rwebm_read_packet(op->demux, &pkt);
          /* Resident wall, not end of stream: see the Vorbis pull. */
          if (r == RWEBM_READ_AGAIN)
+         {
+            op->wall = 1;
             return -2;
+         }
          if (r != 1)
             return 0;
          if (pkt.track == op->track_idx)
          {
+            op->wall = 0;
             /* Handed back with the packet rather than left in the
              * context: see the Vorbis pull. */
             if (pkt.discard_padding > 0)
@@ -3452,7 +3958,9 @@ static int audio_transfer_opus_fill(struct audio_transfer_opus *op, int fmt)
       r = audio_transfer_opus_pull(op, &pdata, &plen, &pad);
       /* The resident wall is not the end of the stream and not an
        * error: report no frames for now, so the read comes up short
-       * and the next call resumes once the feeder has caught up. */
+       * and the next call resumes once the feeder has caught up.
+       * (The pull raised op->wall; read_* turns the resulting empty
+       * read into AUDIO_PROCESS_NEXT rather than END.) */
       if (r == -2)
          return 0;
       if (r <= 0)
@@ -3544,6 +4052,10 @@ static int audio_transfer_aac_pull(struct audio_transfer_aac *ac,
       const uint8_t **pdata, uint32_t *plen)
 {
    {
+      /* Windowed ADTS: stop at the resident prefix rather than the
+       * buffer end, and say "again" instead of "end of stream". */
+      if (ac->adts && ac->avail && ac->adts_pos + 7 > ac->avail)
+         return 2;
       if (ac->adts)
       {
          /* walk the next ADTS frame: 12-bit sync, CRC flag choosing a
@@ -3573,6 +4085,14 @@ static int audio_transfer_aac_pull(struct audio_transfer_aac *ac,
          for (;;)
          {
             int r = rwebm_read_packet(ac->wdemux, &wpkt);
+            /* Resident wall, not end of stream - the same distinction
+             * the rmp4 branch below has always drawn; conflating them
+             * here had a Matroska AAC voice end (and a looping one
+             * rewind mid-file) whenever the feeder fell one tick
+             * behind.  2 also makes the seek walk refuse rather than
+             * treat the wall as the stream ending under it. */
+            if (r == RWEBM_READ_AGAIN)
+               return 2;
             if (r != 1)
                return 0;
             if (wpkt.track == ac->wtrack_idx)
@@ -3590,7 +4110,14 @@ static int audio_transfer_aac_pull(struct audio_transfer_aac *ac,
          rmp4_packet pkt;
          for (;;)
          {
-            if (rmp4_read_packet(ac->demux, &pkt) != 1)
+            int r = rmp4_read_packet(ac->demux, &pkt);
+            /* The sample's bytes are not resident yet.  This is NOT
+             * end of stream: reporting 0 here would have the mixer
+             * loop or stop the voice mid-file the moment the feeder
+             * fell a window behind. */
+            if (r == RMP4_READ_AGAIN)
+               return 2;
+            if (r != 1)
                return 0;
             if (pkt.track == ac->track_idx)
                break;
@@ -3617,11 +4144,18 @@ static int audio_transfer_aac_pull(struct audio_transfer_aac *ac,
 /* Frames decoded before the target and dropped so the decoder has its
  * overlap-add history back.  One access unit is the overlap itself and
  * the walk stops on a unit boundary, so three covers both. */
-#define AUDIO_AAC_PREROLL (1024 * 3)
+#define AUDIO_AAC_PREROLL 3   /* access units decoded before target */
 
-/* Every access unit this decoder takes is 1024 frames, so the walk to a
- * target needs no decoding at all - only the pre-roll does.  Returns
- * the frame reached, or < 0 if the stream ends first. */
+/* Every access unit this decoder takes yields a fixed frame count -
+ * raac_frame_len(), the core 1024 doubled under SBR - so the walk to a
+ * target needs no decoding at all; only the pre-roll does.  Returns
+ * the frame reached, or < 0 if the stream ends first.
+ *
+ * Streams using PNS reconstruct their noise bands from a generator
+ * whose state advances with every draw; a seek skips the draws of the
+ * walked-over access units, so noise samples after a seek differ from
+ * a straight decode (by an LSB or so at s16).  Deterministic loops on
+ * PNS content need seek(0), which raac_reset makes exact. */
 static int audio_transfer_aac_fill(struct audio_transfer_aac *ac);
 
 static int64_t audio_transfer_aac_seek_to(struct audio_transfer_aac *ac,
@@ -3629,7 +4163,8 @@ static int64_t audio_transfer_aac_seek_to(struct audio_transfer_aac *ac,
 {
    int64_t  pos  = 0;
    uint64_t skip = ac->start_trim;
-   int64_t  stop = frame - AUDIO_AAC_PREROLL;
+   int64_t  flen = (int64_t)raac_frame_len(ac->handle);
+   int64_t  stop = frame - AUDIO_AAC_PREROLL * flen;
 
    raac_reset(ac->handle);
    ac->adts_pos = 0;
@@ -3647,9 +4182,13 @@ static int64_t audio_transfer_aac_seek_to(struct audio_transfer_aac *ac,
    {
       const uint8_t *pdata;
       uint32_t plen;
-      int64_t d = 1024;
+      int64_t d = flen;
       int r = audio_transfer_aac_pull(ac, &pdata, &plen);
-      if (r <= 0)
+      /* r == 2 left pdata/plen unset: a target past the resident wall
+       * is refused rather than approximated, per the windowing
+       * contract, and the caller retries once the feeder has raised
+       * the bound past it. */
+      if (r == 2 || r <= 0)
          return -1;              /* asked past the end of the stream   */
       /* the encoder delay is dropped rather than emitted, so it does
        * not count towards the position */
@@ -3669,7 +4208,7 @@ static int64_t audio_transfer_aac_seek_to(struct audio_transfer_aac *ac,
       int r = audio_transfer_aac_fill(ac);
       if (r < 0)
          return -1;
-      if (r == 0)
+      if (r == 0 || r == 2)   /* 2: refused, see the walk above */
          return -1;
       take = frame - pos;
       if (take > (int64_t)ac->pend_frames)
@@ -3690,8 +4229,14 @@ static int audio_transfer_aac_fill(struct audio_transfer_aac *ac)
       int r;
       uint64_t skip;
       r = audio_transfer_aac_pull(ac, &pdata, &plen);
+      if (r == 2)
+      {
+         ac->wall = 1;
+         return 2;               /* not yet resident; no frames, no EOF */
+      }
       if (r <= 0)
          return r;
+      ac->wall = 0;
       r = raac_decode_f32(ac->handle, pdata, plen, ac->pend_f32);
       if (r < 0)
          return -1;
@@ -3733,6 +4278,42 @@ static int audio_transfer_aac_fill(struct audio_transfer_aac *ac)
 }
 #endif
 
+
+/* Did the last empty read stop at the resident wall rather than the
+ * end of the stream?  Consulted by the read tails below: an empty
+ * read at the wall returns AUDIO_PROCESS_NEXT - no frames yet, call
+ * again once the feeder has raised the bound - while an empty read at
+ * the true end keeps returning AUDIO_PROCESS_END, which is what lets
+ * a looping mixer voice rewind at the loop point and only there.
+ * Conflating the two is what turned a feeder one tick behind into a
+ * mid-file rewind, and two ticks behind into the voice releasing. */
+static int audio_transfer_wall_stalled(void *data,
+      enum audio_type_enum type)
+{
+   switch (type)
+   {
+#ifdef HAVE_RVORBIS
+      case AUDIO_TYPE_VORBIS:
+         return ((struct audio_transfer_vorbis*)data)->wall;
+#endif
+#ifdef HAVE_ROPUS
+      case AUDIO_TYPE_OPUS:
+         return ((struct audio_transfer_opus*)data)->wall;
+#endif
+#ifdef HAVE_RAAC
+      case AUDIO_TYPE_AAC:
+         return ((struct audio_transfer_aac*)data)->wall;
+#endif
+#ifdef HAVE_RFLAC
+      case AUDIO_TYPE_FLAC:
+         return ((struct audio_transfer_flac*)data)->wall;
+#endif
+      default:
+         break;
+   }
+   return 0;
+}
+
 int audio_transfer_read_s16(void *data, enum audio_type_enum type,
       int16_t *out, size_t frames, size_t *frames_out)
 {
@@ -3761,8 +4342,8 @@ int audio_transfer_read_s16(void *data, enum audio_type_enum type,
          else
          {
             frames   = audio_transfer_vorbis_cap(v, frames);
-            produced = (size_t)rvorbis_get_samples_s16_interleaved(
-                  v->handle, v->channels, out, (int)frames * v->channels);
+            produced = audio_transfer_vorbis_stream_pull(v, 1, out, NULL,
+                  frames);
             v->emitted += (int64_t)produced;
          }
          break;
@@ -3772,8 +4353,15 @@ int audio_transfer_read_s16(void *data, enum audio_type_enum type,
       case AUDIO_TYPE_MP3:
       {
          struct audio_transfer_mp3 *m = (struct audio_transfer_mp3*)data;
-         if (!m || !m->inited)
+         if (!m || !m->stream)
             return AUDIO_PROCESS_ERROR;
+         if (m->seek_to >= 0)
+         {
+            int64_t at = audio_transfer_mp3_seek_to(m, m->seek_to, 1);
+            m->seek_to = -1;
+            if (at < 0)
+               return AUDIO_PROCESS_ERROR;
+         }
          produced = audio_transfer_mp3_read(m, 1, out, NULL, frames);
          break;
       }
@@ -3837,7 +4425,11 @@ int audio_transfer_read_s16(void *data, enum audio_type_enum type,
             int r = audio_transfer_aac_fill(ac);
             if (r < 0)
                return AUDIO_PROCESS_ERROR;
-            if (r == 0)
+            /* 2 is "not resident yet".  It must break like end of
+             * stream and not fall through: pend_frames is 0 there, so
+             * take would be 0 and this loop would spin forever on a
+             * window the feeder has not caught up with. */
+            if (r == 0 || r == 2)
                break;
             take = frames - produced;
             if (take > ac->pend_frames)
@@ -3939,6 +4531,8 @@ int audio_transfer_read_s16(void *data, enum audio_type_enum type,
 
    if (frames_out)
       *frames_out = produced;
+   if (produced == 0 && audio_transfer_wall_stalled(data, type))
+      return AUDIO_PROCESS_NEXT;   /* starved, not finished: retry     */
    return (produced == 0) ? AUDIO_PROCESS_END : AUDIO_PROCESS_NEXT;
 }
 
@@ -3972,9 +4566,8 @@ int audio_transfer_read_f32(void *data, enum audio_type_enum type,
             break;
          }
          frames = audio_transfer_vorbis_cap(v, frames);
-         got = rvorbis_get_samples_float_interleaved(v->handle, v->channels,
-               out, (int)(frames * (size_t)v->channels));
-         produced = (got > 0) ? (size_t)got : 0;
+         (void)got;
+         produced = audio_transfer_vorbis_stream_pull(v, 0, NULL, out, frames);
          v->emitted += (int64_t)produced;
          break;
       }
@@ -3983,8 +4576,15 @@ int audio_transfer_read_f32(void *data, enum audio_type_enum type,
       case AUDIO_TYPE_MP3:
       {
          struct audio_transfer_mp3 *m = (struct audio_transfer_mp3*)data;
-         if (!m || !m->inited)
+         if (!m || !m->stream)
             return AUDIO_PROCESS_ERROR;
+         if (m->seek_to >= 0)
+         {
+            int64_t at = audio_transfer_mp3_seek_to(m, m->seek_to, 0);
+            m->seek_to = -1;
+            if (at < 0)
+               return AUDIO_PROCESS_ERROR;
+         }
          produced = audio_transfer_mp3_read(m, 0, NULL, out, frames);
          break;
       }
@@ -4126,7 +4726,7 @@ int audio_transfer_read_f32(void *data, enum audio_type_enum type,
             int r = audio_transfer_aac_fill(ac);
             if (r < 0)
                return AUDIO_PROCESS_ERROR;
-            if (r == 0)
+            if (r == 0 || r == 2)   /* see the s16 arm: 2 must break */
                break;
             take = frames - produced;
             if (take > ac->pend_frames)
@@ -4148,6 +4748,8 @@ int audio_transfer_read_f32(void *data, enum audio_type_enum type,
 
    if (frames_out)
       *frames_out = produced;
+   if (produced == 0 && audio_transfer_wall_stalled(data, type))
+      return AUDIO_PROCESS_NEXT;   /* starved, not finished: retry     */
    return (produced == 0) ? AUDIO_PROCESS_END : AUDIO_PROCESS_NEXT;
 }
 
@@ -4183,7 +4785,12 @@ size_t audio_transfer_buffer_tell(void *data, enum audio_type_enum type)
              * nothing here; this one has a packet cursor to report. */
             if (v->packets)
                return v->pkt_offset;
-            /* Self-framed Ogg buffer. */
+            /* Self-framed Ogg buffer: the demuxer consumes the buffer
+             * as it plays, so the cursor kept alongside it is the
+             * compressed frontier - and now a real one, the bytes
+             * behind it being releasable rather than merely read. */
+            if (v->stream)
+               return v->stream_off;
             if (!v->packet)
                return (size_t)rvorbis_buffer_tell(v->handle);
          }
@@ -4229,8 +4836,13 @@ size_t audio_transfer_buffer_tell(void *data, enum audio_type_enum type)
       {
          struct audio_transfer_mp3 *m =
                (struct audio_transfer_mp3*)data;
-         if (m->inited)
-            return (size_t)m->handle.readPos;
+         /* The stream consumes the buffer as it plays, so the cursor
+          * kept alongside it is the compressed frontier - a real one,
+          * the bytes behind it being releasable rather than merely
+          * read.  It leads the decode position by at most the stream's
+          * reassembly hold, which is the safe side for a feeder. */
+         if (m->stream)
+            return m->off;
          return 0;
       }
 #endif
@@ -4277,8 +4889,20 @@ size_t audio_transfer_buffer_tell(void *data, enum audio_type_enum type)
           * set. */
          if (ac->handle && ac->packets)
             return ac->pkt_offset;
-         /* The MP4 and Matroska paths read where their demuxer points
-          * and expose no cursor of their own. */
+#ifdef HAVE_RMP4
+         /* MP4: the packets are decoded where the demuxer points at
+          * them in the caller's buffer, so its consumed offset is the
+          * compressed frontier a feeder needs - the same quantity
+          * rwebm_tell reports for the WebM arms.  Without this a
+          * windowed M4A stream could be given a bound but the feeder
+          * could never learn where to move it. */
+         if (ac->handle && ac->demux)
+            return rmp4_consumed(ac->demux);
+#endif
+#ifdef HAVE_RWEBM
+         if (ac->handle && ac->wdemux)
+            return rwebm_tell(ac->wdemux);
+#endif
          return 0;
       }
 #endif
@@ -4476,31 +5100,35 @@ bool audio_transfer_seek(void *data, enum audio_type_enum type,
           * out, so a seek that moves the stream has to move that count
           * with it.  Left alone, a loop back to the start reaches the
           * bound immediately and the stream reads as ended for good. */
-         if (frame == 0) /* loop-to-start: seek_start always succeeds */
-         {
-            rvorbis_seek_start(v->handle);
-            v->emitted = 0;
-            return true;
-         }
-         if (rvorbis_seek(v->handle, (unsigned int)frame) == 0)
-            return false;
-         v->emitted = (int64_t)frame;
-         return true;
+         return audio_transfer_vorbis_stream_seek(v, frame);
       }
 #endif
 #ifdef HAVE_RMP3
       case AUDIO_TYPE_MP3:
       {
          struct audio_transfer_mp3 *m = (struct audio_transfer_mp3*)data;
-         if (!m || !m->inited)
+         if (!m || !m->stream)
             return false;
-         /* Frame numbers here are of the played audio, so the
-          * priming sits before frame 0. */
-         if (!rmp3_seek_to_frame(&m->handle,
-                  (uint64_t)frame + m->start_trim))
+         /* Where the length is known, refuse to be sent past it rather
+          * than walk to the end and report failure from there. */
+         if (m->limit >= 0 && (int64_t)frame > m->limit)
             return false;
-         m->trim_left = 0;
-         m->emitted   = (int64_t)frame;
+         if (frame == 0 && !m->start_trim)
+         {
+            /* Loop-to-start with nothing to prime past: a rewind, done
+             * here rather than deferred. */
+            rmp3_stream_reset(m->stream);
+            m->off       = 0;
+            m->eof_sent  = 0;
+            m->seek_to   = -1;
+            m->trim_left = 0;
+            m->emitted   = 0;
+            return true;
+         }
+         /* Recorded, not done: see seek_to.  Frame numbers here are of
+          * the played audio, so the priming sits before frame 0 and the
+          * walk at the read covers both. */
+         m->seek_to = (int64_t)frame;
          return true;
       }
 #endif
@@ -4615,7 +5243,11 @@ void audio_transfer_free(void *data, enum audio_type_enum type)
       case AUDIO_TYPE_VORBIS:
       {
          struct audio_transfer_vorbis *v = (struct audio_transfer_vorbis*)data;
-         if (v->handle)
+         /* handle is borrowed from the stream where there is one, so it
+          * must not also be closed. */
+         if (v->stream)
+            rvorbis_stream_free(v->stream);
+         else if (v->handle)
             rvorbis_close(v->handle);
 #ifdef HAVE_RWEBM
          if (v->demux)
@@ -4628,8 +5260,8 @@ void audio_transfer_free(void *data, enum audio_type_enum type)
       case AUDIO_TYPE_MP3:
       {
          struct audio_transfer_mp3 *m = (struct audio_transfer_mp3*)data;
-         if (m->inited)
-            rmp3_uninit(&m->handle);
+         if (m->stream)
+            rmp3_stream_free(m->stream);
          break;
       }
 #endif
@@ -4676,6 +5308,8 @@ void audio_transfer_free(void *data, enum audio_type_enum type)
       case AUDIO_TYPE_AAC:
       {
          struct audio_transfer_aac *ac = (struct audio_transfer_aac*)data;
+         if (ac)
+            free(ac->pend_f32);
          if (ac && ac->handle)
             raac_close(ac->handle);
 #ifdef HAVE_RMP4

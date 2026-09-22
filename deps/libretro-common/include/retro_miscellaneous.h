@@ -22,6 +22,9 @@
 
 #ifndef __RARCH_MISCELLANEOUS_H
 #define __RARCH_MISCELLANEOUS_H
+#ifdef __MACH__
+#include <TargetConditionals.h>
+#endif
 
 #define RARCH_MAX_SUBSYSTEMS 20
 #define RARCH_MAX_SUBSYSTEM_ROMS 10
@@ -49,7 +52,7 @@
 #include <compat/msvc.h>
 #endif
 
-#ifdef IOS
+#if TARGET_OS_IPHONE
 #include <sys/param.h>
 #endif
 
@@ -129,7 +132,7 @@ static INLINE bool bits_any_different(uint32_t *a, uint32_t *b, uint32_t count)
  * This value may vary by platform.
  */
 
-#if defined(_XBOX1) || defined(_3DS) || defined(PSP) || defined(PS2) || defined(GEKKO)|| defined(WIIU) || defined(__PSL1GHT__) || defined(__PS3__) || defined(HAVE_EMSCRIPTEN)
+#if defined(_XBOX1) || defined(_3DS) || defined(PSP) || defined(PS2) || defined(GEKKO)|| defined(WIIU) || defined(__PSL1GHT__) || defined(__PS3__)
 
 #ifndef PATH_MAX_LENGTH
 #define PATH_MAX_LENGTH 512

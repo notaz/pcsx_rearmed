@@ -25,7 +25,33 @@
  *  - Encoding of any kind.
  *  - Negative LPC coefficient shifts (never emitted by known encoders;
  *    such streams are rejected).
- */
+ *
+ * How it is driven: the public interface in <formats/rflac.h> is a
+ * push API.  The caller hands in spans of the stream as it has them
+ * (rflac_set_in), points the decoder at an output block
+ * (rflac_set_out_s16 / _f32), and calls rflac_process, which reports
+ * bytes consumed and frames produced and returns NEXT while the
+ * stream continues, END after the last frame once rflac_set_eof has
+ * been called, or ERROR for a stream it cannot decode.  A span may
+ * end anywhere, including mid-frame: the decoder snapshots its state
+ * before each frame attempt and, when input runs out partway, rewinds
+ * and carries the unconsumed tail internally, so the frame is decoded
+ * exactly once when the rest arrives and the caller never re-sends
+ * bytes it was told were consumed.  rflac_seek and rflac_seek_resumed
+ * translate a target PCM frame into the byte position to feed from;
+ * rflac_reset rewinds to the start (a raw decoder in place, a headered
+ * one by re-parsing its header from the bytes fed after the reset).
+ *
+ * Two constructors: rflac_new decodes a whole headered file - fLaC
+ * marker, metadata, then frames - and reports the stream's format
+ * once the header has been parsed (rflac_format, rflac_total_frames).
+ * rflac_new_raw decodes a bare frame sequence with no header at all,
+ * taking the format from the caller instead; that is the shape CHD
+ * compression stores its FLAC hunks in, and libchdr and rchd are its
+ * consumers.  The dr_flac pull machinery underneath is not exported:
+ * its file-oriented assumptions (a short read is the end of the
+ * stream) are papered over at the refill and process layers, which is
+ * what the span carry above depends on. */
 
 #include <retro_inline.h>
 #include <retro_endianness.h>
@@ -928,13 +954,27 @@ static INLINE uint32_t rflac__reload_l1_cache_from_l2(rflac_bs* bs)
 
    /* If we get here it means we've run out of data in the L2 cache. We'll need
     * to fetch more from the client, if there's any left.
-    */
+    *
+    * Upstream refuses to ask while unaligned bytes are pending: there a
+    * short read can only mean the file underneath ended, so the pending
+    * tail is the last of the stream and asking again is pointless.  A
+    * push source is short every time a span runs out, and more bytes
+    * usually follow, so here the pending tail is spliced back in front
+    * of whatever the client has next.  When the client has nothing the
+    * arithmetic below reduces to what upstream did: the tail comes back
+    * out of the partial-read path unchanged, to be served by the
+    * unaligned fallback in rflac__reload_cache. */
    if (bs->unalignedByteCount > 0)
-      /* If we have any unaligned bytes it means there's no more aligned bytes
-       * left in the client. */
-      return 0;
-
-   bytesRead = bs->onRead(bs->pUserData, bs->cacheL2, RFLAC_CACHE_L2_SIZE_BYTES(bs));
+   {
+      size_t tailByteCount = bs->unalignedByteCount;
+      memcpy(bs->cacheL2, &bs->unalignedCache, tailByteCount);
+      bs->unalignedByteCount = 0;
+      bytesRead = tailByteCount + bs->onRead(bs->pUserData,
+            (uint8_t*)bs->cacheL2 + tailByteCount,
+            RFLAC_CACHE_L2_SIZE_BYTES(bs) - tailByteCount);
+   }
+   else
+      bytesRead = bs->onRead(bs->pUserData, bs->cacheL2, RFLAC_CACHE_L2_SIZE_BYTES(bs));
 
    bs->nextL2Line = 0;
    if (bytesRead == RFLAC_CACHE_L2_SIZE_BYTES(bs))
@@ -3329,26 +3369,39 @@ static uint32_t rflac__decode_subframe(rflac_bs* bs, rflac_frame* frame,
 
    pSubframe->pSamplesS32 = pDecodedSamplesOut;
 
+   /* A subframe whose sample decode fails has not been decoded, and the
+    * caller must know.  These returns were discarded, as they are
+    * upstream, where a failed read can only mean the file underneath
+    * ended and the frame's CRC check was going to reject whatever came
+    * of it anyway.  Here a failed read usually means the push source
+    * ran dry mid-frame: reporting success leaves the bit reader inside
+    * this subframe's residual while the caller goes on to read the next
+    * subframe's header from it, which turns "feed more input" into a
+    * hard error on a healthy stream. */
    switch (pSubframe->subframeType)
    {
       case RFLAC_SUBFRAME_CONSTANT:
       {
-         rflac__decode_samples__constant(bs, frame->header.blockSizeInPCMFrames, subframeBitsPerSample, pSubframe->pSamplesS32);
+         if (!rflac__decode_samples__constant(bs, frame->header.blockSizeInPCMFrames, subframeBitsPerSample, pSubframe->pSamplesS32))
+            return 0;
       } break;
 
       case RFLAC_SUBFRAME_VERBATIM:
       {
-         rflac__decode_samples__verbatim(bs, frame->header.blockSizeInPCMFrames, subframeBitsPerSample, pSubframe->pSamplesS32);
+         if (!rflac__decode_samples__verbatim(bs, frame->header.blockSizeInPCMFrames, subframeBitsPerSample, pSubframe->pSamplesS32))
+            return 0;
       } break;
 
       case RFLAC_SUBFRAME_FIXED:
       {
-         rflac__decode_samples__fixed(bs, frame->header.blockSizeInPCMFrames, subframeBitsPerSample, pSubframe->lpcOrder, pSubframe->pSamplesS32);
+         if (!rflac__decode_samples__fixed(bs, frame->header.blockSizeInPCMFrames, subframeBitsPerSample, pSubframe->lpcOrder, pSubframe->pSamplesS32))
+            return 0;
       } break;
 
       case RFLAC_SUBFRAME_LPC:
       {
-         rflac__decode_samples__lpc(bs, frame->header.blockSizeInPCMFrames, subframeBitsPerSample, pSubframe->lpcOrder, pSubframe->pSamplesS32);
+         if (!rflac__decode_samples__lpc(bs, frame->header.blockSizeInPCMFrames, subframeBitsPerSample, pSubframe->lpcOrder, pSubframe->pSamplesS32))
+            return 0;
       } break;
 
       default: return 0;
@@ -4187,7 +4240,8 @@ static rflac* rflac_open_with_metadata_private(rflac_read_proc onRead,
       rflac_seek_proc onSeek, rflac_meta_proc onMeta, void* pUserData,
       void* pUserDataMD)
 {
-   rflac_init_info init;
+   /* Heap-held for the same reason as in rflac__alloc_raw above. */
+   rflac_init_info *init;
    uint32_t allocationSize;
    uint32_t wholeSIMDVectorCountPerChannel;
    uint32_t decodedSamplesAllocationSize;
@@ -4200,8 +4254,13 @@ static rflac* rflac_open_with_metadata_private(rflac_read_proc onRead,
    /* CPU support first. */
    rflac__init_cpu_caps();
 
-   if (!rflac__init_private(&init, onRead, onSeek, onMeta, pUserData, pUserDataMD))
+   if (!(init = (rflac_init_info*)calloc(1, sizeof(*init))))
       return NULL;
+   if (!rflac__init_private(init, onRead, onSeek, onMeta, pUserData, pUserDataMD))
+   {
+      free(init);
+      return NULL;
+   }
 
    /*
    The size of the allocation for the rflac object needs to be large enough to fit the following:
@@ -4216,18 +4275,18 @@ static rflac* rflac_open_with_metadata_private(rflac_read_proc onRead,
    /* The allocation size for decoded frames depends on the number of 32-bit
     * integers that fit inside the largest SIMD vector we are supporting.
     */
-   if ((init.maxBlockSizeInPCMFrames % (RFLAC_MAX_SIMD_VECTOR_SIZE / sizeof(int32_t))) == 0)
-      wholeSIMDVectorCountPerChannel = (init.maxBlockSizeInPCMFrames / (RFLAC_MAX_SIMD_VECTOR_SIZE / sizeof(int32_t)));
+   if ((init->maxBlockSizeInPCMFrames % (RFLAC_MAX_SIMD_VECTOR_SIZE / sizeof(int32_t))) == 0)
+      wholeSIMDVectorCountPerChannel = (init->maxBlockSizeInPCMFrames / (RFLAC_MAX_SIMD_VECTOR_SIZE / sizeof(int32_t)));
    else
-      wholeSIMDVectorCountPerChannel = (init.maxBlockSizeInPCMFrames / (RFLAC_MAX_SIMD_VECTOR_SIZE / sizeof(int32_t))) + 1;
+      wholeSIMDVectorCountPerChannel = (init->maxBlockSizeInPCMFrames / (RFLAC_MAX_SIMD_VECTOR_SIZE / sizeof(int32_t))) + 1;
 
-   decodedSamplesAllocationSize = wholeSIMDVectorCountPerChannel * RFLAC_MAX_SIMD_VECTOR_SIZE * init.channels;
+   decodedSamplesAllocationSize = wholeSIMDVectorCountPerChannel * RFLAC_MAX_SIMD_VECTOR_SIZE * init->channels;
 
    /* 32-bit stereo streams need a 64-bit plane for the 33-bit stereo
     * difference channel. */
    wideSamplesAllocationSize = 0;
-   if (init.bitsPerSample == 32 && init.channels == 2)
-      wideSamplesAllocationSize = init.maxBlockSizeInPCMFrames * (uint32_t)sizeof(int64_t) + 8;
+   if (init->bitsPerSample == 32 && init->channels == 2)
+      wideSamplesAllocationSize = init->maxBlockSizeInPCMFrames * (uint32_t)sizeof(int64_t) + 8;
 
    allocationSize += decodedSamplesAllocationSize;
    allocationSize += wideSamplesAllocationSize;
@@ -4243,14 +4302,17 @@ static rflac* rflac_open_with_metadata_private(rflac_read_proc onRead,
    firstFramePos  = 42;   /* <-- We know we are at byte 42 at this point. */
    seektablePos   = 0;
    seekpointCount = 0;
-   if (init.hasMetadataBlocks) {
+   if (init->hasMetadataBlocks) {
       rflac_read_proc onReadOverride = onRead;
       rflac_seek_proc onSeekOverride = onSeek;
       void* pUserDataOverride = pUserData;
 
 
       if (!rflac__read_and_decode_metadata(onReadOverride, onSeekOverride, onMeta, pUserDataOverride, pUserDataMD, &firstFramePos, &seektablePos, &seekpointCount))
+      {
+         free(init);
          return NULL;
+      }
 
       allocationSize += seekpointCount * sizeof(rflac_seekpoint);
    }
@@ -4258,9 +4320,13 @@ static rflac* rflac_open_with_metadata_private(rflac_read_proc onRead,
 
    pFlac = (rflac*)malloc(allocationSize);
    if (pFlac == NULL)
+   {
+      free(init);
       return NULL;
+   }
 
-   rflac__init_from_info(pFlac, &init);
+   rflac__init_from_info(pFlac, init);
+   free(init);
    pFlac->pDecodedSamples = (int32_t*)RFLAC_ALIGN((size_t)pFlac->pExtraData, RFLAC_MAX_SIMD_VECTOR_SIZE);
    pFlac->pWideSamples     = NULL;
    pFlac->wideChannelIndex = 0xFF;
@@ -6356,7 +6422,10 @@ struct rflac_ctx
    size_t             out_frames;
    size_t             out_done;
    int                ended;
+   size_t             span_taken;    /* of the current span, last call   */
+   int                eof_in;        /* caller has no more input to give */
    int                need_header;   /* set until a header is parsed */
+   int                raw;           /* made by rflac_new_raw()          */
 };
 
 static size_t rflac__on_read_push(void *pUserData, void *bufferOut,
@@ -6431,7 +6500,11 @@ static uint32_t rflac__on_seek_push(void *pUserData, int offset,
 static rflac *rflac__alloc_raw(const rflac_format_t *fmt,
       rflac_push_source *src)
 {
-   rflac_init_info init;
+   /* Heap-held: rflac_init_info carries the bit streamer's cache and
+    * makes this a 4 KiB frame on the stream-open path, which runs on
+    * 8 KiB thread stacks on some targets.  Nothing below keeps a
+    * pointer into it -- rflac__init_from_info copies by value. */
+   rflac_init_info *init;
    rflac           *pFlac;
    uint32_t         vectors;
    uint32_t         decodedSize;
@@ -6440,36 +6513,40 @@ static rflac *rflac__alloc_raw(const rflac_format_t *fmt,
 
    rflac__init_cpu_caps();
 
-   memset(&init, 0, sizeof(init));
-   init.sampleRate              = fmt->sample_rate;
-   init.channels                = (uint8_t)fmt->channels;
-   init.bitsPerSample           = (uint8_t)fmt->bits_per_sample;
-   init.totalPCMFrameCount      = 0;
-   init.maxBlockSizeInPCMFrames = (uint16_t)fmt->block_size;
-   init.hasMetadataBlocks       = 0;
-   init.bs.onRead               = rflac__on_read_push;
-   init.bs.onSeek               = rflac__on_seek_push;
-   init.bs.pUserData            = src;
+   if (!(init = (rflac_init_info*)calloc(1, sizeof(*init))))
+      return NULL;
+   init->sampleRate              = fmt->sample_rate;
+   init->channels                = (uint8_t)fmt->channels;
+   init->bitsPerSample           = (uint8_t)fmt->bits_per_sample;
+   init->totalPCMFrameCount      = 0;
+   init->maxBlockSizeInPCMFrames = (uint16_t)fmt->block_size;
+   init->hasMetadataBlocks       = 0;
+   init->bs.onRead               = rflac__on_read_push;
+   init->bs.onSeek               = rflac__on_seek_push;
+   init->bs.pUserData            = src;
 
-   vectors = init.maxBlockSizeInPCMFrames
+   vectors = init->maxBlockSizeInPCMFrames
            / (RFLAC_MAX_SIMD_VECTOR_SIZE / sizeof(int32_t));
-   if ((init.maxBlockSizeInPCMFrames
+   if ((init->maxBlockSizeInPCMFrames
             % (RFLAC_MAX_SIMD_VECTOR_SIZE / sizeof(int32_t))) != 0)
       vectors++;
 
-   decodedSize = vectors * RFLAC_MAX_SIMD_VECTOR_SIZE * init.channels;
+   decodedSize = vectors * RFLAC_MAX_SIMD_VECTOR_SIZE * init->channels;
 
    wideSize = 0;
-   if (init.bitsPerSample == 32 && init.channels == 2)
-      wideSize = init.maxBlockSizeInPCMFrames * (uint32_t)sizeof(int64_t) + 8;
+   if (init->bitsPerSample == 32 && init->channels == 2)
+      wideSize = init->maxBlockSizeInPCMFrames * (uint32_t)sizeof(int64_t) + 8;
 
    allocationSize = (uint32_t)sizeof(rflac) + decodedSize + wideSize
                   + RFLAC_MAX_SIMD_VECTOR_SIZE;
 
    if (!(pFlac = (rflac*)malloc(allocationSize)))
+   {
+      free(init);
       return NULL;
+   }
 
-   rflac__init_from_info(pFlac, &init);
+   rflac__init_from_info(pFlac, init);
    pFlac->bs.pUserData            = src;
    pFlac->firstFLACFramePosInBytes = 0;
    pFlac->pDecodedSamples         = (int32_t*)RFLAC_ALIGN(
@@ -6478,6 +6555,7 @@ static rflac *rflac__alloc_raw(const rflac_format_t *fmt,
       pFlac->pWideSamples = (int64_t*)(((uint8_t*)pFlac->pDecodedSamples)
             + decodedSize);
 
+   free(init);
    return pFlac;
 }
 
@@ -6536,6 +6614,7 @@ rflac_t *rflac_new_raw(const rflac_format_t *fmt)
       return NULL;
 
    f->fmt = *fmt;
+   f->raw = 1;
    if (!(f->dec = rflac__alloc_raw(fmt, &f->src)))
    {
       free(f);
@@ -6571,6 +6650,11 @@ void rflac_free(rflac_t *f)
  * its subchannel data immediately after the last FLAC frame, and finding
  * that boundary is only possible if the decoder reports where the frames
  * really ended. */
+/* Where the stream has reached, in bytes of input the decode has
+ * actually used.  The bitreader reads ahead, so this is behind what has
+ * been pulled from the source by whatever is sitting in its cache - and
+ * that difference is meaningful to a caller: it is how a CD FLAC hunk's
+ * audio is told from the subchannel data packed after it. */
 static size_t rflac__consumed(const rflac_t *f)
 {
    const rflac_bs *bs = &f->dec->bs;
@@ -6586,6 +6670,22 @@ static size_t rflac__consumed(const rflac_t *f)
    return f->src.pos - held;
 }
 
+/* How much of the caller's span the decoder has absorbed, which is a
+ * different quantity and the one a windowed caller needs.  Bytes the
+ * bitreader has pulled into its cache are gone from the span whether or
+ * not their bits have been used, and the cache survives across calls -
+ * so a caller that re-presented them would have them read twice, once
+ * from the cache and once from the new span, and the stream would run
+ * ahead of itself by the cache depth on every call.  The carry sits
+ * ahead of the span and was handed over earlier, so it does not count
+ * towards this one. */
+static size_t rflac__span_taken(const rflac_t *f)
+{
+   const rflac_push_source *s = &f->src;
+
+   return (s->pos > s->carry_len) ? s->pos - s->carry_len : 0;
+}
+
 static size_t rflac__max_frame_bytes(const rflac_t *f)
 {
    return (size_t)f->fmt.block_size * f->fmt.channels
@@ -6598,7 +6698,6 @@ int rflac_process(rflac_t *f, size_t *read, size_t *wrote)
    size_t   span_len;
    size_t   want;
    size_t   produced;
-   int      undoable = 0;
 
    if (read)
       *read = 0;
@@ -6607,6 +6706,12 @@ int rflac_process(rflac_t *f, size_t *read, size_t *wrote)
 
    if (!f)
       return RFLAC_PROCESS_ERROR;
+
+   /* Cleared here rather than only on the paths that set it: this call
+    * may return at any of the guards below without touching the span,
+    * and a caller advancing its window by a figure left over from the
+    * previous call would skip that much input. */
+   f->span_taken = 0;
    if (f->ended)
       return RFLAC_PROCESS_END;
 
@@ -6634,6 +6739,7 @@ int rflac_process(rflac_t *f, size_t *read, size_t *wrote)
          f->src.data = NULL;
          f->src.size = 0;
          f->src.pos  = 0;
+         f->span_taken = span_len;
          if (read)
             *read = span_len;
          return RFLAC_PROCESS_NEXT;
@@ -6666,14 +6772,16 @@ int rflac_process(rflac_t *f, size_t *read, size_t *wrote)
    if (want > f->out_frames - f->out_done)
       want = f->out_frames - f->out_done;
 
-   if (rflac__src_total(&f->src) - f->src.pos < rflac__max_frame_bytes(f))
-   {
-      if (!f->saved && !(f->saved = (rflac*)malloc(sizeof(rflac))))
-         return RFLAC_PROCESS_ERROR;
-      memcpy(f->saved, f->dec, sizeof(rflac));
-      f->saved_pos = f->src.pos;
-      undoable     = 1;
-   }
+   /* Always take a rewind point.  This used to be skipped when the
+    * input held more than the longest frame could be, on the reasoning
+    * that such a span cannot run dry mid-frame - but the bitreader
+    * reads ahead of the frame it is decoding, so it can and does, and
+    * the branch below then read that underrun as the end of the
+    * stream.  What ends a stream is the caller saying so. */
+   if (!f->saved && !(f->saved = (rflac*)malloc(sizeof(rflac))))
+      return RFLAC_PROCESS_ERROR;
+   memcpy(f->saved, f->dec, sizeof(rflac));
+   f->saved_pos = f->src.pos;
 
    f->src.underrun = 0;
 
@@ -6688,8 +6796,19 @@ int rflac_process(rflac_t *f, size_t *read, size_t *wrote)
    {
       /* The span ran out mid-frame. Put everything back so the frame
        * can be decoded once from the start when the rest arrives; the
-       * decode core is never told this happened. */
-      if (undoable)
+       * decode core is never told this happened.  The bit reader's
+       * refill polls the source whenever it runs dry, so every way of
+       * running out passes through the read callback and raises the
+       * underrun flag; a failed attempt without it did not stop for
+       * lack of input.
+       *
+       * Unless there is nothing more to arrive. A stream's last frame is
+       * shorter than the longest one it could legally be, so the tail of
+       * every file lands here with fewer bytes left than a rewind point
+       * is taken for - and waiting for the rest of a frame that is
+       * already complete loses it. Only the caller knows which case it
+       * is, which is what rflac_set_eof states. */
+      if (!f->eof_in)
       {
          memcpy(f->dec, f->saved, sizeof(rflac));
          if (!rflac__src_hold(&f->src, f->saved_pos))
@@ -6699,17 +6818,29 @@ int rflac_process(rflac_t *f, size_t *read, size_t *wrote)
          f->src.size = 0;
          /* The whole span was taken over, whether it was consumed or
           * carried, so the caller is free to reuse or free it. */
+         f->span_taken = span_len;
          if (read)
             *read = span_len;
          return RFLAC_PROCESS_NEXT;
       }
-      /* Not undoable means the span was long enough for any legal
-       * frame and still ran dry, so this is the end of the stream
-       * rather than the end of a span. */
+      /* The caller has said there is no more input, so an underrun is
+       * the end of the stream rather than the end of a span.  Whatever
+       * the last frame produced stands: it is kept below rather than
+       * rolled back. */
       f->ended = 1;
    }
+   else if (produced == 0 && want > 0)
+      /* Nothing came out and the source was never short: the decoder
+       * hit something it cannot decode, and trying again from the same
+       * position with the same bytes will hit it again.  Returning
+       * NEXT here asks the caller to feed the rest of the stream into
+       * an attempt that can never move - the shape of a hang, reported
+       * as progress. */
+      return RFLAC_PROCESS_ERROR;
 
    f->out_done += produced;
+
+   f->span_taken = rflac__span_taken(f);
 
    if (read)
    {
@@ -6790,9 +6921,73 @@ void rflac_reset(rflac_t *f)
 {
    if (!f)
       return;
+
+   /* The span, and whatever a rolled-back frame left in the carry,
+    * belong to wherever the stream used to be. A caller re-presenting
+    * the stream from its start must not find them prepended to it, and
+    * the position the decoder reports must not still be the old one. */
    rflac_set_in(f, NULL, 0);
-   f->out_done = 0;
-   f->ended    = 0;
+   f->src.carry_len = 0;
+   f->src.underrun  = 0;
+   f->eof_in        = 0;
+   f->out_done      = 0;
+   f->span_taken    = 0;
+   f->ended         = 0;
+
+   if (!f->dec)
+      return;
+
+   if (f->raw)
+   {
+      /* Headerless: nothing to parse again, so the decode state goes
+       * back to the start of the stream where it stands. */
+      memset(&f->dec->bs, 0, sizeof(f->dec->bs));
+      f->dec->bs.onRead       = rflac__on_read_push;
+      f->dec->bs.onSeek       = rflac__on_seek_push;
+      f->dec->bs.pUserData    = &f->src;
+      f->dec->currentPCMFrame = 0;
+      memset(&f->dec->currentFLACFrame, 0, sizeof(f->dec->currentFLACFrame));
+      return;
+   }
+
+   /* Otherwise the caller has only the file to hand back, from its
+    * first byte - where the first frame begins is not a figure this
+    * decoder exposes - so the header is parsed again from it. The
+    * geometry that comes back is the same, so nothing a caller sized
+    * against it moves. */
+   free(f->dec);
+   f->dec         = NULL;
+   f->need_header = 1;
+}
+
+size_t rflac_span_taken(const rflac_t *f)
+{
+   return f ? f->span_taken : 0;
+}
+
+size_t rflac_min_input(const rflac_t *f)
+{
+   size_t want;
+
+   if (!f || f->need_header)
+      return 0;
+
+   /* Deliberately generous. A frame must be present whole, but the
+    * bitreader also reads ahead of the frame it is decoding, and how
+    * far is not a figure the format states - so a window sized to the
+    * longest legal frame is not in fact enough, and one sized from
+    * STREAMINFO's maximum frame size is not either. This is measured
+    * rather than derived: below roughly 16k, decoding degrades on
+    * streams whose frames are far smaller than that. Callers wanting
+    * a small footprint should treat this as the floor it is. */
+   want = rflac__max_frame_bytes(f) * 2;
+   return (want < 32768) ? 32768 : want;
+}
+
+void rflac_set_eof(rflac_t *f)
+{
+   if (f)
+      f->eof_in = 1;
 }
 
 void rflac_set_in(rflac_t *f, const uint8_t *in, size_t in_size)

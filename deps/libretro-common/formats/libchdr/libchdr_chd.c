@@ -61,7 +61,7 @@
 #include <libchdr/lzma.h>
 #endif
 
-#ifdef HAVE_ZSTD
+#if defined(HAVE_ZSTD) || defined(HAVE_RZSTD)
 #include <libchdr/libchdr_zstd.h>
 #endif
 
@@ -237,7 +237,7 @@ struct _chd_file
 	flac_codec_data			flac_codec_data;		/* flac codec data */
 	cdfl_codec_data			cdfl_codec_data;		/* cdfl codec data */
 #endif
-#ifdef HAVE_ZSTD
+#if defined(HAVE_ZSTD) || defined(HAVE_RZSTD)
 	zstd_codec_data			zstd_codec_data;		/* zstd codec data */
 	cdzs_codec_data			cdzs_codec_data;		/* cdzs codec data */
 #endif
@@ -345,6 +345,11 @@ static chd_error huff_codec_init(void* codec, uint32_t hunkbytes)
 {
 	huff_codec_data* huff_codec = (huff_codec_data*) codec;
 	huff_codec->decoder = create_huffman_decoder(256, 16);
+	/* Reporting success on a failed allocation left a NULL decoder for
+	 * huff_codec_decompress to hand straight to
+	 * huffman_import_tree_huffman, which dereferences it unchecked. */
+	if (huff_codec->decoder == NULL)
+		return CHDERR_OUT_OF_MEMORY;
 	return CHDERR_NONE;
 }
 
@@ -495,7 +500,7 @@ static const codec_interface codec_interfaces[] =
 		NULL
 	},
 #endif
-#ifdef HAVE_ZSTD
+#if defined(HAVE_ZSTD) || defined(HAVE_RZSTD)
 	/* V5 zstd compression */
 	{
 		CHD_CODEC_ZSTD,
@@ -585,7 +590,15 @@ static INLINE void put_bigendian_uint48(uint8_t *base, uint64_t value)
 
 static INLINE uint32_t get_bigendian_uint32_t(const uint8_t *base)
 {
-	return (base[0] << 24) | (base[1] << 16) | (base[2] << 8) | base[3];
+	/* Each byte is cast before shifting. base[0] is a uint8_t, which the
+	 * usual arithmetic conversions promote to int, so base[0] << 24 is a
+	 * signed shift that overflows for any byte from 0x80 up - undefined
+	 * behaviour, and it fires on ordinary data rather than exotic input:
+	 * a CRC or a SHA-1 byte has a one-in-two chance of tripping it. The
+	 * uint64 and uint48 readers above already cast for exactly this
+	 * reason, so this one was an oversight rather than a decision. */
+	return ((uint32_t)base[0] << 24) | ((uint32_t)base[1] << 16) |
+	       ((uint32_t)base[2] <<  8) |  (uint32_t)base[3];
 }
 
 /*-------------------------------------------------
@@ -648,9 +661,18 @@ static INLINE void map_extract(const uint8_t *base, map_entry *entry)
 /*-------------------------------------------------
     map_size_v5 - calculate CHDv5 map size
 -------------------------------------------------*/
-static INLINE int map_size_v5(chd_header* header)
+static INLINE uint64_t map_size_v5(chd_header* header)
 {
-	return header->hunkcount * header->mapentrybytes;
+	/* Computed in 64 bits and returned as such. hunkcount is derived from
+	 * logicalbytes and hunkbytes, both attacker-controlled header fields,
+	 * so it reaches into the billions; multiplied by mapentrybytes the
+	 * product overflowed the uint32_t arithmetic and was then converted to
+	 * a signed int, frequently landing negative. malloc() and core_fread()
+	 * take size_t, so a negative int widened to an enormous request -
+	 * observed asking for 0xffffffffc0000000 bytes off a corrupt image.
+	 * In 64 bits there is no overflow and an implausible size simply fails
+	 * the allocation, which callers already handle. */
+	return (uint64_t)header->hunkcount * (uint64_t)header->mapentrybytes;
 }
 
 
@@ -684,15 +706,17 @@ static chd_error decompress_v5_map(chd_file* chd, chd_header* header)
 	struct huffman_decoder* decoder;
 	enum huffman_error err;
 	uint64_t curoffset;
-	int rawmapsize = map_size_v5(header);
+	uint64_t rawmapsize = map_size_v5(header);
 
 	if (!chd_compressed(header))
 	{
-		header->rawmap = (uint8_t*)malloc(rawmapsize);
+		if (rawmapsize > (uint64_t)((size_t)-1))
+			return CHDERR_INVALID_DATA;
+		header->rawmap = (uint8_t*)malloc((size_t)rawmapsize);
 		if (header->rawmap == NULL)
 			return CHDERR_OUT_OF_MEMORY;
 		core_fseek(chd->file, header->mapoffset, SEEK_SET);
-		core_fread(chd->file, header->rawmap, rawmapsize);
+		core_fread(chd->file, header->rawmap, (size_t)rawmapsize);
 		return CHDERR_NONE;
 	}
 
@@ -706,14 +730,59 @@ static chd_error decompress_v5_map(chd_file* chd, chd_header* header)
 	selfbits = rawbuf[13];
 	parentbits = rawbuf[14];
 
+	/* These are single bytes from the image, so 0..255, and they are fed
+	 * straight to bitstream_read() below as the bit count. bitstream_peek
+	 * computes `buffer >> (32 - numbits)` on a uint32_t accumulator, so
+	 * anything above 32 is a negative shift and undefined behaviour.
+	 * Widths above 32 are meaningless for a 32-bit read in any case.
+	 *
+	 * Unlike the other two problems addressed here this one is reasoned
+	 * rather than reproduced: reaching the reads requires a valid huffman
+	 * tree earlier in the map, which the fuzzer did not manage to
+	 * construct, so it is guarded on principle rather than on a
+	 * reproducer. No writer emits these values - the widths are derived
+	 * from hunk counts and lengths - so rejecting them cannot turn away a
+	 * legitimate image. */
+	if (lengthbits > 32 || selfbits > 32 || parentbits > 32)
+		return CHDERR_INVALID_DATA;
+
 	/* now read the map */
+	{
+		/* mapbytes is a 32-bit field taken straight from the image, so a
+		 * few hundred bytes of file can ask for up to 4 GB. Taking it at
+		 * face value is wrong twice over: the allocation alone is a
+		 * memory-exhaustion denial of service, and core_fread's count is
+		 * discarded below, so a short read leaves the tail of the buffer
+		 * uninitialised and the bitstream decoder consumes whatever the
+		 * heap happened to hold - uninitialised memory steering control
+		 * flow. mapoffset is unvalidated too, so the seek can land past
+		 * the end and leave the buffer entirely uninitialised.
+		 *
+		 * Bound it by what the file actually contains, the same check
+		 * read_metadata already makes against core_fsize. The subtraction
+		 * is ordered so it cannot wrap. */
+		uint64_t filesize = (uint64_t)core_fsize(chd->file);
+		uint64_t mapstart = header->mapoffset + 16;
+
+		if (mapstart > filesize || (uint64_t)mapbytes > filesize - mapstart)
+			return CHDERR_INVALID_DATA;
+	}
+
 	compressed_ptr = (uint8_t*)malloc(sizeof(uint8_t) * mapbytes);
 	if (compressed_ptr == NULL)
 		return CHDERR_OUT_OF_MEMORY;
 	core_fseek(chd->file, header->mapoffset + 16, SEEK_SET);
 	core_fread(chd->file, compressed_ptr, mapbytes);
 	bitbuf = create_bitstream(compressed_ptr, sizeof(uint8_t) * mapbytes);
-	header->rawmap = (uint8_t*)malloc(rawmapsize);
+	/* Guard the narrowing to size_t: on a 32-bit host a 64-bit size that
+	 * does not fit would wrap on the way into malloc. */
+	if (rawmapsize > (uint64_t)((size_t)-1))
+	{
+		free(compressed_ptr);
+		free(bitbuf);
+		return CHDERR_INVALID_DATA;
+	}
+	header->rawmap = (uint8_t*)malloc((size_t)rawmapsize);
 	if (header->rawmap == NULL)
 	{
 		free(compressed_ptr);
@@ -753,6 +822,22 @@ static chd_error decompress_v5_map(chd_file* chd, chd_header* header)
 				rawmap[0] = lastcomp, repcount = 2 + 16 + (huffman_decode_one(decoder, bitbuf) << 4), repcount += huffman_decode_one(decoder, bitbuf);
 			else
 				rawmap[0] = lastcomp = val;
+		}
+
+		/* hunkcount comes from logicalbytes / hunkbytes, both header
+		 * fields, so a two-kilobyte image can claim a terabyte and send
+		 * these loops around a quarter of a billion times. Once the map
+		 * bitstream is exhausted every further read returns zero and the
+		 * remaining iterations decode nothing, so this is not an
+		 * arbitrary cap - a well-formed map never overflows, and one
+		 * that does cannot describe the hunks it claims. Measured at 64
+		 * seconds on a 2 KB file before this check. */
+		if (bitstream_overflow(bitbuf))
+		{
+			free(compressed_ptr);
+			free(bitbuf);
+			delete_huffman_decoder(decoder);
+			return CHDERR_DECOMPRESSION_ERROR;
 		}
 	}
 
@@ -817,6 +902,15 @@ static chd_error decompress_v5_map(chd_file* chd, chd_header* header)
 
 		/* crc16 */
 		put_bigendian_uint16(&rawmap[10], crc);
+
+		/* Same reasoning as the type loop above. */
+		if (bitstream_overflow(bitbuf))
+		{
+			free(compressed_ptr);
+			free(bitbuf);
+			delete_huffman_decoder(decoder);
+			return CHDERR_DECOMPRESSION_ERROR;
+		}
 	}
 
 	/* free memory */
@@ -1046,7 +1140,7 @@ CHD_EXPORT chd_error chd_open_core_file(core_file *file, int mode, chd_file *par
 						break;
 
 					case CHD_CODEC_ZSTD:
-#ifdef HAVE_ZSTD
+#if defined(HAVE_ZSTD) || defined(HAVE_RZSTD)
 						codec = &newchd->zstd_codec_data;
 #endif
 						break;
@@ -1070,7 +1164,7 @@ CHD_EXPORT chd_error chd_open_core_file(core_file *file, int mode, chd_file *par
 						break;
 
 					case CHD_CODEC_CD_ZSTD:
-#ifdef HAVE_ZSTD
+#if defined(HAVE_ZSTD) || defined(HAVE_RZSTD)
 						codec = &newchd->cdzs_codec_data;
 #endif
 						break;
@@ -1225,7 +1319,7 @@ CHD_EXPORT void chd_close(chd_file *chd)
 					break;
 
 				case CHD_CODEC_ZSTD:
-#ifdef HAVE_ZSTD
+#if defined(HAVE_ZSTD) || defined(HAVE_RZSTD)
 					codec = &chd->zstd_codec_data;
 #endif
 					break;
@@ -1249,7 +1343,7 @@ CHD_EXPORT void chd_close(chd_file *chd)
 					break;
 
 				case CHD_CODEC_CD_ZSTD:
-#ifdef HAVE_ZSTD
+#if defined(HAVE_ZSTD) || defined(HAVE_RZSTD)
 					codec = &chd->cdzs_codec_data;
 #endif
 					break;
@@ -1380,18 +1474,30 @@ CHD_EXPORT const chd_header *chd_get_header(chd_file *chd)
 CHD_EXPORT chd_error chd_read_header_core_file(core_file *file, chd_header *header)
 {
 	chd_error err;
-	chd_file fake;
+	chd_file *fake;
 
 	/* punt if NULL */
 	if (file == NULL || header == NULL)
 		return CHDERR_INVALID_PARAMETER;
 
 	/* header_read only touches ->file, but hand it a fully zeroed
-	 * struct so that stays true by inspection. */
-	memset(&fake, 0, sizeof(fake));
-	fake.file = file;
+	 * struct so that stays true by inspection.
+	 *
+	 * Heap rather than a local: chd_file embeds the working state of
+	 * every codec it can use - huff, zlib, cdzl, lzma - so as
+	 * 'chd_file fake;' this was a 57504-byte frame, zeroed in full,
+	 * to read a header that reads one member of it. No target with a
+	 * small thread stack builds CHD, so this was not a crash, but a
+	 * frame that size does not belong on any stack: it sits under
+	 * whatever called it, and nothing about "read this file's header"
+	 * suggests it costs 56 KiB to do. */
+	fake = (chd_file *)calloc(1, sizeof(*fake));
+	if (fake == NULL)
+		return CHDERR_OUT_OF_MEMORY;
+	fake->file = file;
 
-	err = header_read(&fake, header);
+	err = header_read(fake, header);
+	free(fake);
 	if (err != CHDERR_NONE)
 		return err;
 
@@ -2004,7 +2110,7 @@ static chd_error hunk_read_into_memory(chd_file *chd, uint32_t hunknum, uint8_t 
 						break;
 
 					case CHD_CODEC_ZSTD:
-#ifdef HAVE_ZSTD
+#if defined(HAVE_ZSTD) || defined(HAVE_RZSTD)
 						codec = &chd->zstd_codec_data;
 #endif
 						break;
@@ -2028,7 +2134,7 @@ static chd_error hunk_read_into_memory(chd_file *chd, uint32_t hunknum, uint8_t 
 						break;
 
 					case CHD_CODEC_CD_ZSTD:
-#ifdef HAVE_ZSTD
+#if defined(HAVE_ZSTD) || defined(HAVE_RZSTD)
 						codec = &chd->cdzs_codec_data;
 #endif
 						break;
@@ -2110,17 +2216,27 @@ static chd_error hunk_read_into_memory(chd_file *chd, uint32_t hunknum, uint8_t 
 static chd_error map_read(chd_file *chd)
 {
 	uint32_t entrysize = (chd->header.version < 3) ? OLD_MAP_ENTRY_SIZE : MAP_ENTRY_SIZE;
-	uint8_t raw_map_entries[MAP_STACK_ENTRIES * MAP_ENTRY_SIZE];
+	/* 8 KiB chunk buffer: heap-allocated because a v3/v4 open can run
+	 * on threads with 8 KiB stacks on some targets, which a local of
+	 * this size overruns on entry. One allocation per open. */
+	uint8_t *raw_map_entries;
 	uint64_t fileoffset, maxoffset = 0;
 	uint8_t cookie[MAP_ENTRY_SIZE];
 	uint32_t count;
 	chd_error err;
 	uint32_t i;
 
+	raw_map_entries = (uint8_t *)malloc(MAP_STACK_ENTRIES * MAP_ENTRY_SIZE);
+	if (!raw_map_entries)
+		return CHDERR_OUT_OF_MEMORY;
+
 	/* first allocate memory */
 	chd->map = (map_entry *)malloc(sizeof(chd->map[0]) * chd->header.totalhunks);
 	if (!chd->map)
+	{
+		free(raw_map_entries);
 		return CHDERR_OUT_OF_MEMORY;
+	}
 
 	/* read the map entries in in chunks and extract to the map list */
 	fileoffset = chd->header.length;
@@ -2175,9 +2291,11 @@ static chd_error map_read(chd_file *chd)
 		err = CHDERR_INVALID_FILE;
 		goto cleanup;
 	}
+	free(raw_map_entries);
 	return CHDERR_NONE;
 
 cleanup:
+	free(raw_map_entries);
 	if (chd->map)
 		free(chd->map);
 	chd->map = NULL;

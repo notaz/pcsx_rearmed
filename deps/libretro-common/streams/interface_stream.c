@@ -579,16 +579,39 @@ char *intfstream_gets(intfstream_internal_t *intf,
 #endif
       case INTFSTREAM_BUFFERED:
          {
+            /* Serve the line from the resident window in spans - one
+             * memchr for the newline and one memcpy per window visit -
+             * rather than pulling it through intfstream_read() a byte
+             * at a time.  The underlying reads were already one fill
+             * per window; this removes the per-byte dispatch on top. */
             uint64_t i = 0;
             if (len == 0)
                return NULL;
             while (i + 1 < (uint64_t)len)
             {
-               uint8_t c;
-               if (intfstream_read(intf, &c, 1) != 1)
+               uint64_t want;
+               const uint8_t *nl;
+               uint64_t p = intf->buffered.pos;
+               if (p >= intf->buffered.size)
                   break;
-               s[i++] = (char)c;
-               if (c == '\n')
+               if (   !(p >= intf->buffered.lo && p < intf->buffered.hi)
+                   && !intfstream_buffered_fill(intf, p, 1))
+                  break;
+               {
+                  const uint8_t *src = intf->buffered.buf
+                        + (p - intf->buffered.lo);
+                  uint64_t avail     = intf->buffered.hi - p;
+                  want               = (uint64_t)len - 1 - i;
+                  if (want > avail)
+                     want = avail;
+                  nl = (const uint8_t*)memchr(src, '\n', (size_t)want);
+                  if (nl)
+                     want = (uint64_t)(nl - src) + 1;
+                  memcpy(s + i, src, (size_t)want);
+               }
+               i                  += want;
+               intf->buffered.pos  = p + want;
+               if (nl)
                   break;
             }
             if (i == 0)
@@ -626,10 +649,18 @@ int intfstream_getc(intfstream_internal_t *intf)
 #endif
       case INTFSTREAM_BUFFERED:
          {
-            uint8_t c;
-            if (intfstream_read(intf, &c, 1) != 1)
+            /* Window hit inline, as intfstream_read() does for its
+             * bulk path: getc-driven consumers issue enough calls
+             * that the extra dispatch through intfstream_read() for
+             * one byte is itself measurable. */
+            uint64_t p = intf->buffered.pos;
+            if (p >= intf->buffered.size)
                return EOF;
-            return (int)c;
+            if (   !(p >= intf->buffered.lo && p < intf->buffered.hi)
+                && !intfstream_buffered_fill(intf, p, 1))
+               return EOF;
+            intf->buffered.pos = p + 1;
+            return (int)intf->buffered.buf[p - intf->buffered.lo];
          }
       case INTFSTREAM_RZIP:
 #if defined(HAVE_COMPRESSION)
@@ -819,31 +850,81 @@ bool intfstream_is_compressed(intfstream_internal_t *intf)
    return false;
 }
 
+/**
+ * intfstream_crc_step:
+ *
+ * Hash at most @max_bytes more of @intf into @accumulator, resuming
+ * from wherever the previous call stopped.  Returns the number of
+ * bytes hashed, 0 at end of stream, or -1 on read error.
+ *
+ * This exists so callers running inside a task handler can bound how
+ * long one tick spends hashing.  intfstream_get_crc() consumes the
+ * whole stream in a single call, so the cost of a tick that invokes
+ * it is a function of file size and nothing else -- unbounded from
+ * the frontend's point of view.  That is fine for a 2 MB core and
+ * not fine for a 260 MB one, still less for a multi-gigabyte disc
+ * image on the scan path, and least of all on the SD-card and
+ * spinning-disk targets where the read rate is a tenth of a desktop's.
+ *
+ * Timing policy deliberately stays with the caller: it owns the
+ * deadline and decides the quantum, exactly as the save-state
+ * transfer loops in tasks/task_save.c do.  A stream-layer function
+ * has no business deciding what a frame is worth.
+ *
+ * The caller is responsible for positioning the stream (normally
+ * intfstream_rewind()) before the first step and for zeroing
+ * @accumulator.
+ **/
+int64_t intfstream_crc_step(intfstream_internal_t *intf,
+      uint32_t *accumulator, size_t max_bytes)
+{
+   int64_t data_read;
+   uint8_t *buffer;
+   /* 256 KB reads instead of a 4 KB stack buffer: CRCing a scanned
+    * multi-gigabyte disc image at 4 KB a call is a quarter of a
+    * million reads per gigabyte, and the call overhead dominates
+    * the checksum. */
+   size_t buffer_len = 256 * 1024;
+
+   if (!intf || !accumulator)
+      return -1;
+
+   if (max_bytes < buffer_len)
+      buffer_len = max_bytes;
+   if (!buffer_len)
+      return 0;
+
+   if (!(buffer = (uint8_t*)malloc(buffer_len)))
+      return -1;
+
+   data_read = intfstream_read(intf, buffer, buffer_len);
+
+   if (data_read > 0)
+      *accumulator = encoding_crc32(*accumulator, buffer,
+            (size_t)data_read);
+
+   free(buffer);
+
+   return data_read;
+}
+
 bool intfstream_get_crc(intfstream_internal_t *intf, uint32_t *crc)
 {
    int64_t data_read    = 0;
    uint32_t accumulator = 0;
-   /* 256 KB reads instead of a 4 KB stack buffer: CRCing a scanned
-    * multi-gigabyte disc image at 4 KB a call is a quarter of a
-    * million reads per gigabyte, and the call overhead dominates
-    * the checksum.  Heap-allocated once per file - this runs on
-    * scan / updater / backup paths, never per-frame. */
-   size_t buffer_len    = 256 * 1024;
-   uint8_t *buffer      = NULL;
 
    if (!intf || !crc)
-      return false;
-
-   if (!(buffer = (uint8_t*)malloc(buffer_len)))
       return false;
 
    /* Ensure we start at the beginning of the file */
    intfstream_rewind(intf);
 
-   while ((data_read = intfstream_read(intf, buffer, buffer_len)) > 0)
-      accumulator = encoding_crc32(accumulator, buffer, (size_t)data_read);
-
-   free(buffer);
+   /* Whole-stream convenience wrapper over intfstream_crc_step().
+    * Unchanged in behaviour and still the right call for anything
+    * not running on a frame deadline. */
+   while ((data_read = intfstream_crc_step(intf, &accumulator,
+               (size_t)-1)) > 0)
+      ;
 
    if (data_read < 0)
       return false;

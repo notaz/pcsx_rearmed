@@ -29,7 +29,7 @@
 /* Minimal portable atomic operations for SPSC patterns.
  *
  * This header consolidates the ad-hoc atomic shims previously duplicated
- * in audio/drivers/{coreaudio,coreaudio3,xaudio,opensl}.c, audio/common/
+ * in audio/drivers/{coreaudio,xaudio,opensl}.c, audio/common/
  * mmdevice_common.c and gfx/gfx_thumbnail.c.  The surface is intentionally
  * narrow: load, store, fetch_add, fetch_sub, fetch_or, fetch_and, plus
  * inc/dec convenience wrappers.  Everything is on plain machine words
@@ -126,8 +126,12 @@
  *   Use when you have a working alternative (mutex-based, locked,
  *   slock_t / scond_t, fifo_queue with a lock around it) that you
  *   would happily fall back to on a target without real atomics.
- *   This is the same shape as audio/drivers/coreaudio.c's
- *   RARCH_COREAUDIO_LEGACY split.
+ *   audio/drivers/coreaudio.c once carried this split against its
+ *   oldest toolchains and no longer needs to: every Apple toolchain
+ *   it builds on gets a real backend here (OSAtomic on the oldest),
+ *   so it uses the atomics unconditionally, as Pattern 3 does but
+ *   for correctness rather than tolerance. Reach for Pattern 1 when
+ *   a target you build for genuinely lands in the volatile fallback.
  *
  *     #include <retro_atomic.h>
  *     #if defined(RETRO_ATOMIC_LOCK_FREE)

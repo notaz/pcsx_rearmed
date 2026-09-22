@@ -24,6 +24,41 @@
 #define __COCOA_COMMON_DEFINES_H
 
 #include <AvailabilityMacros.h>
+#ifdef __MACH__
+#include <TargetConditionals.h>
+#endif
+
+/* TARGET_OS_OSX is Apple's own name for "macOS, not iOS or tvOS" and
+ * is what this tree tests, alongside TARGET_OS_IPHONE. It is only in
+ * the 10.12 and later SDKs, so on an older one it is filled in here:
+ * on Apple, anything that is not the iPhone family is macOS. That is
+ * the definition Apple's own header uses and it needs nothing but
+ * TARGET_OS_IPHONE, which every SDK that has ever had an iPhone in it
+ * defines - and whose absence, on a 10.4 or 10.5 SDK that predates
+ * the iPhone entirely, means macOS by the same reasoning. tvOS and
+ * watchOS set TARGET_OS_IPHONE, so they land on the right side too.
+ *
+ * The simulator is the exception that has to be named: iOS SDKs
+ * before iOS 9 set TARGET_OS_IPHONE to 0 for a simulator build and
+ * marked it with TARGET_IPHONE_SIMULATOR instead, so a bare
+ * TARGET_OS_IPHONE test would call the old simulator a Mac. Both
+ * simulator spellings are checked, the modern one and that one.
+ *
+ * Not defined off Apple, where #if reads it as 0.
+ *
+ * No line continuations here: this file has CRLF endings and a
+ * backslash does not continue across one. */
+#if defined(__APPLE__) && !defined(TARGET_OS_OSX)
+#if defined(TARGET_OS_IPHONE) && TARGET_OS_IPHONE
+#define TARGET_OS_OSX 0
+#elif defined(TARGET_OS_SIMULATOR) && TARGET_OS_SIMULATOR
+#define TARGET_OS_OSX 0
+#elif defined(TARGET_IPHONE_SIMULATOR) && TARGET_IPHONE_SIMULATOR
+#define TARGET_OS_OSX 0
+#else
+#define TARGET_OS_OSX 1
+#endif
+#endif
 
 #ifndef MAC_OS_X_VERSION_10_12
 #define MAC_OS_X_VERSION_10_12 101200
