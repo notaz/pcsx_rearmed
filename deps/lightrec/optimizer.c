@@ -676,6 +676,17 @@ static void lightrec_lui_to_movi(struct block *block, unsigned int offset)
 		ori = &block->opcode_list[next];
 
 		switch (ori->i.op) {
+		case OP_LB:
+		case OP_LH:
+		case OP_LWL:
+		case OP_LW:
+		case OP_LBU:
+		case OP_LHU:
+		case OP_LWR:
+		case OP_META_LWU:
+			if (op_flag_load_delay(ori->flags))
+				break;
+			fallthrough;
 		case OP_ORI:
 		case OP_ADDI:
 		case OP_ADDIU:
@@ -683,6 +694,8 @@ static void lightrec_lui_to_movi(struct block *block, unsigned int offset)
 				ori->flags |= LIGHTREC_MOVI;
 				lui->flags |= LIGHTREC_MOVI;
 			}
+			break;
+		default:
 			break;
 		}
 	}
@@ -905,6 +918,7 @@ static int lightrec_transform_ops(struct lightrec_state *state, struct block *bl
 	unsigned int i;
 	bool local;
 	int idx;
+	u32 pc;
 	u8 tmp;
 
 	for (i = 0; i < block->nb_ops; i++) {
@@ -926,6 +940,14 @@ static int lightrec_transform_ops(struct lightrec_state *state, struct block *bl
 			continue;
 
 		switch (op->i.op) {
+		case OP_J:
+		case OP_JAL:
+			pc = (block->pc & 0xf0000000) | (op->j.imm << 2);
+
+			if (lightrec_should_exit(pc))
+				op->flags |= LIGHTREC_EARLY_EXIT;
+			break;
+
 		case OP_BEQ:
 			if (op->i.rs == op->i.rt ||
 			    (is_known(v, op->i.rs) && is_known(v, op->i.rt) &&
@@ -1216,6 +1238,35 @@ static int lightrec_transform_ops(struct lightrec_state *state, struct block *bl
 					op->m.op = OP_META_MOV;
 					op->i.op = OP_META;
 				}
+				break;
+
+			case OP_SPECIAL_JR:
+				if (is_known(v, op->i.rs)
+				    && lightrec_should_exit(v[op->i.rs].value)) {
+					op->flags |= LIGHTREC_EARLY_EXIT;
+				}
+
+				if (is_known(v, op->i.rs)
+				    && kunseg(v[op->i.rs].value) >> 28 == kunseg(block->pc) >> 28) {
+					pr_debug("Convert JR to J\n");
+					op->j.imm = kunseg(v[op->i.rs].value) >> 2;
+					op->j.op = OP_J;
+				}
+				break;
+
+			case OP_SPECIAL_JALR:
+				if (is_known(v, op->i.rs)
+				    && lightrec_should_exit(v[op->i.rs].value)) {
+					op->flags |= LIGHTREC_EARLY_EXIT;
+				}
+
+				if (is_known(v, op->r.rs)
+				    && op->r.rd == 31
+				    && kunseg(v[op->r.rs].value) >> 28 == kunseg(block->pc) >> 28) {
+					pr_debug("Convert JALR to JAL\n");
+					op->j.imm = kunseg(v[op->i.rs].value) >> 2;
+					op->j.op = OP_JAL;
+				}
 				fallthrough;
 			default:
 				break;
@@ -1311,8 +1362,10 @@ static int lightrec_switch_delay_slots(struct lightrec_state *state, struct bloc
 		if (op_flag_sync(next->flags))
 			continue;
 
-		if (op_flag_load_delay(next->flags) && opcode_is_load(next_op))
+		if (op_flag_load_delay(next->flags)
+		    && opcode_has_load_delay(next_op)) {
 			continue;
+		}
 
 		if (!lightrec_can_switch_delay_slot(list->c, next_op))
 			continue;
@@ -1344,7 +1397,6 @@ static int lightrec_detect_impossible_branches(struct lightrec_state *state,
 
 		if (!has_delay_slot(op->c) ||
 		    (!has_delay_slot(next->c) &&
-		     !opcode_is_mfc(next->c) &&
 		     !(next->i.op == OP_CP0 && next->r.rs == OP_CP0_RFE)))
 			continue;
 
@@ -1472,6 +1524,76 @@ static int lightrec_swap_load_delays(struct lightrec_state *state,
 	return 0;
 }
 
+static bool lightrec_detect_idle_range(struct block *block, u16 min, u16 max)
+{
+	struct opcode *list = block->opcode_list;
+	u64 read_mask = 0;
+	u64 write_mask = 0;
+	unsigned int i;
+
+	for (i = min; i <= max; i++) {
+		read_mask |= ~write_mask & opcode_read_mask(list[i].c);
+		write_mask |= opcode_write_mask(list[i].c);
+
+		if ((i > min && op_flag_sync(list[i].flags))
+		    || is_unconditional_jump(list[i].c)
+		    || is_syscall(list[i].c)
+		    || opcode_is_store(list[i].c)
+		    || list[i].c.i.op == OP_CP0
+		    || list[i].c.i.op == OP_CP2) {
+			return false;
+		}
+
+		if (opcode_is_io(list[i].c)) {
+			switch (LIGHTREC_FLAGS_GET_IO_MODE(list[i].flags)) {
+			case LIGHTREC_IO_DIRECT:
+			case LIGHTREC_IO_RAM:
+			case LIGHTREC_IO_BIOS:
+			case LIGHTREC_IO_SCRATCH:
+			case LIGHTREC_IO_DIRECT_HW:
+				continue;
+			default:
+				return false;
+			}
+		}
+	}
+
+	if (read_mask & write_mask) {
+		/* The block of code writes registers used as input in the code.
+		 * Therefore it cannot be optimized. */
+		return false;
+	}
+
+	pr_debug("Found idle loop at "PC_FMT" (0x%x -> 0x%x)\n",
+		 block->pc, min << 2, max << 2);
+	return true;
+}
+
+int lightrec_detect_idle(struct block *block)
+{
+	struct opcode *op;
+	unsigned int i;
+	s32 offset;
+	u16 idx;
+
+	for (i = 0; i < block->nb_ops; i++) {
+		op = &block->opcode_list[i];
+
+		if (op_flag_local_branch(op->flags) && has_delay_slot(op->c)) {
+			idx = i + !op_flag_no_ds(op->flags);
+
+			offset = idx + (s16)op->c.i.imm;
+			if (offset >= i)
+				continue;
+
+			if (lightrec_detect_idle_range(block, offset, idx))
+				block->opcode_list[i].flags |= LIGHTREC_IDLE_LOOP;
+		}
+	}
+
+	return 0;
+}
+
 static int lightrec_local_branches(struct lightrec_state *state, struct block *block)
 {
 	const struct opcode *ds;
@@ -1490,7 +1612,7 @@ static int lightrec_local_branches(struct lightrec_state *state, struct block *b
 		pr_debug("Found local branch to offset 0x%"PRIx32"\n", offset << 2);
 
 		ds = get_delay_slot(block->opcode_list, i);
-		if (op_flag_load_delay(ds->flags) && opcode_is_load(ds->c)) {
+		if (op_flag_load_delay(ds->flags) && opcode_has_load_delay(ds->c)) {
 			pr_debug("Branch delay slot has a load delay - skip\n");
 			continue;
 		}
@@ -1661,7 +1783,7 @@ static int lightrec_early_unload(struct lightrec_state *state, struct block *blo
 		mask_r = opcode_read_mask(op->c);
 		mask_w = opcode_write_mask(op->c);
 
-		if (op_flag_load_delay(op->flags) && opcode_is_load(op->c)) {
+		if (op_flag_load_delay(op->flags) && opcode_has_load_delay(op->c)) {
 			/* If we have a load opcode in a delay slot, its target
 			 * register is actually not written there but at a
 			 * later point, in the dispatcher. Prevent the algorithm
@@ -1841,11 +1963,11 @@ static int lightrec_flag_io(struct lightrec_state *state, struct block *block)
 			}
 
 			if (!LIGHTREC_FLAGS_GET_IO_MODE(list->flags)
-			    && list->i.rs >= 28 && list->i.rs <= 29
+			    && list->i.rs == 29
 			    && !state->maps[PSX_MAP_KERNEL_USER_RAM].ops) {
 				/* Assume that all I/O operations that target
-				 * $sp or $gp will always only target a mapped
-				 * memory (RAM, BIOS, scratchpad). */
+				 * $sp will always only target a mapped memory
+				 * (RAM, BIOS, scratchpad). */
 				if (state->opt_flags & LIGHTREC_OPT_SP_GP_HIT_RAM)
 					list->flags |= LIGHTREC_IO_MODE(LIGHTREC_IO_RAM);
 				else
@@ -2147,6 +2269,20 @@ static bool remove_div_sequence(struct block *block, unsigned int offset)
 	 * therefore assume that the games never divided by zero or overflowed,
 	 * and these sequences can be removed.
 	 */
+
+	if (is_delay_slot(block->opcode_list, offset - 1)) {
+		if (((block->opcode_list[offset - 2].opcode & 0xfc1fffff) == 0x14000002)
+		    && block->opcode_list[offset].opcode == 0x0007000d) {
+			/* BNE +2 / DIV(U) / BREAK combo, we can get rid of the BNE/BREAK. */
+			block->opcode_list[offset - 2].opcode = 0;
+			block->opcode_list[offset].opcode = 0;
+
+			pr_debug("Removing DIVU sequence at offset 0x%x\n",
+				 (offset - 2) << 2);
+
+			return true;
+		}
+	}
 
 	for (i = offset; i < block->nb_ops; i++) {
 		op = &block->opcode_list[i];

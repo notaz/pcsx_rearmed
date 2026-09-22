@@ -25,4 +25,6 @@ _Bool should_emulate(const struct opcode *op);
 
 int lightrec_optimize(struct lightrec_state *state, struct block *block);
 
+int lightrec_detect_idle(struct block *block);
+
 #endif /* __OPTIMIZER_H__ */

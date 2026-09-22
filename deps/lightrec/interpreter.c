@@ -1213,6 +1213,11 @@ static u32 lightrec_emulate_block_list(struct lightrec_state *state,
 
 	state->current_cycle += inter.cycles;
 
+	if (lightrec_should_exit(pc)) {
+		pr_debug("Interpreter should exit after "PC_FMT".\n", block->pc);
+		state->target_cycle = state->current_cycle;
+	}
+
 	return pc;
 }
 

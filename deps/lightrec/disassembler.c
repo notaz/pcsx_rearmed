@@ -139,13 +139,18 @@ static const char * const mult2_opcodes[] = {
 static const char * const opcode_flags[] = {
 	"switched branch/DS",
 	"sync point",
+	"movi",
+};
+
+static const char * const opcode_mfc_flags[] = {
+	"load delay",
 };
 
 static const char * const opcode_io_flags[] = {
+	"load delay",
 	"self-modifying code",
 	"no invalidation",
 	"no mask",
-	"load delay",
 };
 
 static const char * const opcode_io_modes[] = {
@@ -160,10 +165,8 @@ static const char * const opcode_io_modes[] = {
 static const char * const opcode_branch_flags[] = {
 	"emulate branch",
 	"local branch",
-};
-
-static const char * const opcode_movi_flags[] = {
-	"movi",
+	"idle loop",
+	"early exit",
 };
 
 static const char * const opcode_multdiv_flags[] = {
@@ -338,11 +341,16 @@ static int print_op_special(union code c, char *buf, size_t len,
 	}
 }
 
-static int print_op_cp(union code c, char *buf, size_t len, unsigned int cp)
+static int print_op_cp(union code c, char *buf, size_t len, unsigned int cp,
+		       const char * const **flags_ptr, size_t *nb_flags)
 {
 	if (cp == 2) {
 		switch (c.r.op) {
 		case OP_CP2_BASIC:
+			if (c.i.rs == OP_CP2_BASIC_MFC2 || c.i.rs == OP_CP2_BASIC_CFC2) {
+				*flags_ptr = opcode_mfc_flags;
+				*nb_flags = ARRAY_SIZE(opcode_mfc_flags);
+			}
 			return snprintf(buf, len, "%s%s,%u",
 					cp2_basic_opcodes[c.i.rs],
 					lightrec_reg_name(c.i.rt),
@@ -354,6 +362,8 @@ static int print_op_cp(union code c, char *buf, size_t len, unsigned int cp)
 		switch (c.i.rs) {
 		case OP_CP0_MFC0:
 		case OP_CP0_CFC0:
+			*flags_ptr = opcode_mfc_flags;
+			*nb_flags = ARRAY_SIZE(opcode_mfc_flags);
 		case OP_CP0_MTC0:
 		case OP_CP0_CTC0:
 			return snprintf(buf, len, "%s%s,%u",
@@ -413,9 +423,6 @@ static int print_op(union code c, u32 pc, char *buf, size_t len,
 	case OP_ADDI:
 	case OP_ADDIU:
 	case OP_ORI:
-		*flags_ptr = opcode_movi_flags;
-		*nb_flags = ARRAY_SIZE(opcode_movi_flags);
-		fallthrough;
 	case OP_SLTI:
 	case OP_SLTIU:
 	case OP_ANDI:
@@ -427,16 +434,14 @@ static int print_op(union code c, u32 pc, char *buf, size_t len,
 				(u16)c.i.imm);
 
 	case OP_LUI:
-		*flags_ptr = opcode_movi_flags;
-		*nb_flags = ARRAY_SIZE(opcode_movi_flags);
 		return snprintf(buf, len, "%s%s,0x%04hx",
 				std_opcodes[c.i.op],
 				lightrec_reg_name(c.i.rt),
 				(u16)c.i.imm);
 	case OP_CP0:
-		return print_op_cp(c, buf, len, 0);
+		return print_op_cp(c, buf, len, 0, flags_ptr, nb_flags);
 	case OP_CP2:
-		return print_op_cp(c, buf, len, 2);
+		return print_op_cp(c, buf, len, 2, flags_ptr, nb_flags);
 	case OP_LB:
 	case OP_LH:
 	case OP_LWL:
@@ -469,7 +474,7 @@ static int print_op(union code c, u32 pc, char *buf, size_t len,
 				(s16)c.i.imm,
 				lightrec_reg_name(c.i.rs));
 	case OP_META_BIOS:
-		return snprintf(buf, len, "%s0x%x",
+		return snprintf(buf, len, "%s0x%" PRIx32,
 				std_opcodes[c.i.op],
 				c.opcode & 0x03ffffff);
 	case OP_META:

@@ -24,6 +24,7 @@
 #cmakedefine01 OPT_FLAG_MULT_DIV
 #cmakedefine01 OPT_EARLY_UNLOAD
 #cmakedefine01 OPT_PRELOAD_PC
+#cmakedefine01 OPT_DETECT_IDLE
 
 #cmakedefine01 OPT_SH4_USE_GBR
 

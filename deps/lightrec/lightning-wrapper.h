@@ -14,6 +14,7 @@
 
 #define jit_ldxi_ui(u,v,w)	jit_ldxi_i(u,v,w)
 #define jit_stxi_ui(u,v,w)	jit_stxi_i(u,v,w)
+#define jit_ldr_ui(u,v)		jit_ldr_i(u,v)
 #define jit_extr_i(u,v)		jit_movr(u,v)
 #define jit_extr_ui(u,v)	jit_movr(u,v)
 #define jit_retval_ui(u)	jit_retval(u)
