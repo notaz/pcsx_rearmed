@@ -21,7 +21,7 @@
 .text
 .align 2
 
-FUNCTION(gteRTPS_sf1lm0_arm64):   // x0=CP2 (d,c); save: v8-v15
+FUNCTION(gteRTPS_sf1lm0_arm64):   // x0=CP2 (d,c); scratch v16+ only, v8-v15 are callee-saved
     add      x1, x0, #4*32
     ld1      {v0.8h,v1.8h}, [x1]  // gteRxx, gteTR|XYZ
     ldr      w1, [x0, #4*(32+5)]  // gteTR|XYZ
@@ -49,20 +49,20 @@ FUNCTION(gteRTPS_sf1lm0_arm64):   // x0=CP2 (d,c); save: v8-v15
 
     mov      v5.h[3], w2          // kill the unused upper vector
     ld1      {v16.4s}, [x1]       // gteSZ|123x
-    smull    v10.4s, v0.4h, v5.4h
-    smull    v11.4s, v1.4h, v5.4h
-    smull    v12.4s, v2.4h, v5.4h
+    smull    v17.4s, v0.4h, v5.4h
+    smull    v18.4s, v1.4h, v5.4h
+    smull    v19.4s, v2.4h, v5.4h
     add      x1, x0, #4*16        // gteSZ*
     st1      {v16.2s}, [x1], #8   // gteSZ|12 to |01
     st1      {v16.s}[2], [x1]     // gteSZ|3 to |2
-    saddlv   d10, v10.4s
-    saddlv   d11, v11.4s
-    saddlv   d12, v12.4s
+    saddlv   d17, v17.4s
+    saddlv   d18, v18.4s
+    saddlv   d19, v19.4s
     ldr      x16, [x0, #LO_cop2_to_gte_divider_tab_ptr] // gte_divider_tab
-    mov      v10.d[1], v11.d[0]
+    mov      v17.d[1], v18.d[0]
     add      x1, x0, #4*25
-    add      v3.2d, v3.2d, v10.2d
-    add      d4,    d4,    d12
+    add      v3.2d, v3.2d, v17.2d
+    add      d4,    d4,    d19
     shrn     v5.2s, v3.2d, #12    // gteMAC|12 (overwrites top!)
     shrn2    v5.4s, v4.2d, #12    // gteMAC3
  F( mov      w17, #0      )       // gteFLAG
