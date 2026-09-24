@@ -337,6 +337,134 @@ static void test_cdrom_seek_resp2_cancel(struct tstate *st)
         cdrom_dump_hist(st);
 }
 
+#define ctc2(v, r) asm volatile("ctc2 %0, $" #r :: "r"(v))
+#define mtc2(v, r) asm volatile("mtc2 %0, $" #r :: "r"(v))
+
+struct gte_rtps_case
+{
+    u32 vxy0, vz0;
+    u32 r[5];         // R11R12 R13R21 R22R23 R31R32 R33
+    u32 tr[3];
+    u32 ofx, ofy;
+    u32 h, dqa, dqb;
+    u32 sz[3];        // SZ1-3 before
+    u32 sxy[2];       // SXY1-2 before
+    u32 res[2][17];   // gte_rtps_sf1lm0*() output, with and without NCLIP
+};
+
+static const struct gte_rtps_case gte_rtps_cases[] = {
+    // no flags
+    { 0xffce0064, 1000, { 0x1000, 0, 0x1000, 0, 0x1000 }, { 10, 20, 3000 },
+      160 << 16, 120 << 16, 200, 0xff9c, 0x100000,
+      { 1, 2, 3 }, { 0x00100020, 0x00300040 },
+      {{
+        0x000000af, 0x0000006e, 0xffffffe2, 0x00000fa0, 0x00100020, 0x00300040,
+        0x007600a5, 0x007600a5, 0x00000001, 0x00000002, 0x00000003, 0x00000fa0,
+        0x000affec, 0x0000006e, 0xffffffe2, 0x00000fa0, 0x00000000
+      }, {
+        0x000000af, 0x0000006e, 0xffffffe2, 0x00000fa0, 0x00100020, 0x00300040,
+        0x007600a5, 0x007600a5, 0x00000001, 0x00000002, 0x00000003, 0x00000fa0,
+        0xfffffc20, 0x0000006e, 0xffffffe2, 0x00000fa0, 0x00000000
+      }}},
+    // non-trivial rotation, divider lut
+    { 0x0123fedc, 0x0555, { 0x0e3a0521, 0xfb07fc80, 0x0cf1093e, 0x0a0bf6aa, 0x0bc1 },
+      { -300, 777, 1234 }, 0x012345, -0x6789a, 0x155, 0x1234, 0x10000,
+      { 0xffff, 0x8000, 0x7fff }, { 0xffff8000, 0x7fff0001 },
+      {{
+        0x00001000, 0xfffffe4e, 0x0000085b, 0x00000a1d, 0xffff8000, 0x7fff0001,
+        0x0113ffc7, 0x0113ffc7, 0x0000ffff, 0x00008000, 0x00007fff, 0x00000a1d,
+        0x0266c960, 0xfffffe4e, 0x0000085b, 0x00000a1d, 0x00001000
+      }, {
+        0x00001000, 0xfffffe4e, 0x0000085b, 0x00000a1d, 0xffff8000, 0x7fff0001,
+        0x0113ffc7, 0x0113ffc7, 0x0000ffff, 0x00008000, 0x00007fff, 0x00000a1d,
+        0xc0a68114, 0xfffffe4e, 0x0000085b, 0x00000a1d, 0x00000000
+      }}},
+    // IR1+/IR2- sat, SZ3<0, H>=SZ3*2, SX/SY sat, MAC0+ overflow, IR0 sat
+    { 0x80017fff, 0x7fff, { 0x00007fff, 0x00000000, 0x00007fff, 0x7fff7fff, 0x7fff },
+      { 0, 0, -0x100000 }, 0, 0, 1, 0x7fff, 0x7fffffff,
+      { 0, 0, 0 }, { 0, 0 },
+      {{
+        0x00001000, 0x00007fff, 0xffff8000, 0xffff8000, 0x00000000, 0x00000000,
+        0xfc0003ff, 0xfc0003ff, 0x00000000, 0x00000000, 0x00000000, 0x00000000,
+        0x7ffd8000, 0x0003fff0, 0xfffc000f, 0xfff3fff0, 0x81c7f000
+      }, {
+        0x00001000, 0x00007fff, 0xffff8000, 0xffff8000, 0x00000000, 0x00000000,
+        0xfc0003ff, 0xfc0003ff, 0x00000000, 0x00000000, 0x00000000, 0x00000000,
+        0x00000000, 0x0003fff0, 0xfffc000f, 0xfff3fff0, 0x00000000
+      }}},
+    // SZ3>0xffff, IR3 sat, MAC0- overflow, IR0<0
+    { 0x00000000, 0x7fff, { 0, 0, 0, 0, 0x7fff },
+      { -5, 5, 0x100000 }, -1, 1, 0xffff, 0x8000, -0x40000000,
+      { 7, 8, 9 }, { 1, 2 },
+      {{
+        0x00000000, 0xfffffffb, 0x00000005, 0x00007fff, 0x00000001, 0x00000002,
+        0x0004fffb, 0x0004fffb, 0x00000007, 0x00000008, 0x00000009, 0x0000ffff,
+        0x40008000, 0xfffffffb, 0x00000005, 0x0013fff0, 0x80449000
+      }, {
+        0x00000000, 0xfffffffb, 0x00000005, 0x00007fff, 0x00000001, 0x00000002,
+        0x0004fffb, 0x0004fffb, 0x00000007, 0x00000008, 0x00000009, 0x0000ffff,
+        0x00000004, 0xfffffffb, 0x00000005, 0x0013fff0, 0x00000000
+      }}},
+    // H just below SZ3*2, SX/SY-
+    { 0x00000000, 0x0000, { 0, 0, 0, 0, 0 },
+      { -0x7fff, -0x7fff, 0x8000 }, -0x2000000, 0x1000000, 0xffff, 0x0100, 0,
+      { 0, 0, 0 }, { 0, 0 },
+      {{
+        0x00001000, 0xffff8001, 0xffff8001, 0x00007fff, 0x00000000, 0x00000000,
+        0xfc00fc00, 0xfc00fc00, 0x00000000, 0x00000000, 0x00000000, 0x00008000,
+        0x01fffe00, 0xffff8001, 0xffff8001, 0x00008000, 0x8040f000
+      }, {
+        0x00001000, 0xffff8001, 0xffff8001, 0x00007fff, 0x00000000, 0x00000000,
+        0xfc00fc00, 0xfc00fc00, 0x00000000, 0x00000000, 0x00000000, 0x00008000,
+        0x00000000, 0xffff8001, 0xffff8001, 0x00008000, 0x00000000
+      }}},
+};
+
+static void gte_rtps_setup(const struct gte_rtps_case *c)
+{
+    ctc2(c->r[0], 0); ctc2(c->r[1], 1); ctc2(c->r[2], 2);
+    ctc2(c->r[3], 3); ctc2(c->r[4], 4);
+    ctc2(c->tr[0], 5); ctc2(c->tr[1], 6); ctc2(c->tr[2], 7);
+    ctc2(c->ofx, 24); ctc2(c->ofy, 25); ctc2(c->h, 26);
+    ctc2(c->dqa, 27); ctc2(c->dqb, 28);
+    mtc2(c->vxy0, 0); mtc2(c->vz0, 1);
+    mtc2(c->sz[0], 17); mtc2(c->sz[1], 18); mtc2(c->sz[2], 19);
+    mtc2(c->sxy[0], 13); mtc2(c->sxy[1], 14);
+}
+
+static void test_gte_rtps(struct tstate *st)
+{
+    static const char * const names[17] = {
+        "IR0", "IR1", "IR2", "IR3", "SXY0", "SXY1", "SXY2", "SXYP",
+        "SZ0", "SZ1", "SZ2", "SZ3", "MAC0", "MAC1", "MAC2", "MAC3", "FLAG"
+    };
+    u32 i, j, v, out[17];
+
+    for (i = 0; i < sizeof(gte_rtps_cases) / sizeof(gte_rtps_cases[0]); i++) {
+        const struct gte_rtps_case *c = &gte_rtps_cases[i];
+        for (v = 0; v < 2; v++) {
+            gte_rtps_setup(c);
+            if (v == 0)
+                gte_rtps_sf1lm0(out);
+            else
+                gte_rtps_sf1lm0_nclip(out);
+            st->tt++;
+            for (j = 0; j < 17; j++)
+                if (out[j] != c->res[v][j])
+                    break;
+            if (j == 17) {
+                st->tp++;
+                continue;
+            }
+            printf("gte rtps case %d/%d:", i, v);
+            for (j = 0; j < 17; j++)
+                if (out[j] != c->res[v][j])
+                    printf(" %s %x!=%x", names[j], out[j], c->res[v][j]);
+            printf("\n");
+        }
+    }
+}
+
 int main()
 {
     struct tstate st = { (u8 *)0x1f800000, 0, };
@@ -349,6 +477,11 @@ int main()
     printf("irq stat/mask %08x/%08x\n", HW16(st.hw, 0x1070), HW16(st.hw, 0x1074));
     HW32(st.hw, 0x1074) = 0;
     HW16(st.hw, 0x1124) = 0x200; // start counter2, clk/8
+
+    // enable cop2
+    asm volatile("mfc0 %0, $12; nop; or %0, %1; mtc0 %0, $12; nop"
+        : "=&r"(len) : "r"(1u << 30));
+    test_gte_rtps(&st);
 
     test_cdrom_irqen(&st);
     cdr_w_irqf(st.hw, 0x5f); // ack irq, clear param fifo

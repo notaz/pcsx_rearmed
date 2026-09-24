@@ -590,6 +590,7 @@ int main(int argc, char *argv[])
 	const char *loadst_f = NULL;
 	int psxout = 0;
 	int psxin = 0;
+	int nothread = 0;
 	int loadst = 0;
 	int retval = 0;
 	int i;
@@ -604,6 +605,8 @@ int main(int argc, char *argv[])
 			psxin = 1;
 		else if (!strcmp(argv[i], "-novid"))
 			g_novideo = 1;
+		else if (!strcmp(argv[i], "-nothread"))
+			nothread = 1;
 		else if (!strcmp(argv[i], "-load")) {
 			if (i+1 >= argc) break;
 			loadst = atol(argv[++i]);
@@ -644,6 +647,7 @@ int main(int argc, char *argv[])
 				"\t-psxout,-stdout\tEnable PSX stdout\n"
 				"\t-psxin,-stdin\tConnect host stdin to PSX stdin\n"
 				"\t-novid\t\tNo video output, menu or window\n"
+				"\t-nothread\tDon't use any threads\n"
 				"\t-load STATENUM\tLoads savestate STATENUM (1-9)\n"
 				"\t-loadf FILE\tLoads savestate from FILE\n"
 				"\t-h,-help\tDisplay this message\n"
@@ -674,6 +678,15 @@ int main(int argc, char *argv[])
 	plat_init();
 	menu_init(); // loads config
 
+	if (nothread) {
+		ndrc_g.hacks |= NDHACK_THREAD_FORCE;
+		ndrc_g.hacks &= ~NDHACK_THREAD_FORCE_ON;
+		spu_config.iUseThread = 0;
+		pl_rearmed_cbs.thread_rendering = 0;
+		cdra_set_buf_count(0);
+	}
+
+	// starts some threads
 	if (emu_core_init() != 0)
 		return 1;
 

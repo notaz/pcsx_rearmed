@@ -37,6 +37,6 @@ testcd.cue:
 	test -f $@
 
 run: $(TARGET) ../pcsx testcd.cue
-	cd .. && ./pcsx -stdout -stdin -novid -cdfile tests/testcd.cue tests/$(TARGET)
+	cd .. && ./pcsx -stdout -stdin -novid -nothread -cdfile tests/testcd.cue tests/$(TARGET)
 
 .PHONY: clean all run
