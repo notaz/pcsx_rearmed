@@ -4723,7 +4723,7 @@ static void hleC0t() {
 // currently not used
 static void hleBootstrap() {
 	CheckCdrom();
-	LoadCdrom();
+	LoadCdromMainExe(NULL);
 }
 
 static void hleExecRet() {

@@ -2,14 +2,15 @@
 
 #define MAXBLOCK 2048 // in mips instructions
 
-#define NDHACK_NO_SMC_CHECK	(1<<0)
-#define NDHACK_GTE_UNNEEDED	(1<<1)
-#define NDHACK_GTE_NO_FLAGS	(1<<2)
-#define NDHACK_OVERRIDE_CYCLE_M	(1<<3)
-#define NDHACK_NO_STALLS	(1<<4)
-#define NDHACK_NO_COMPAT_HACKS	(1<<5)
-#define NDHACK_THREAD_FORCE   	(1<<6)
-#define NDHACK_THREAD_FORCE_ON	(1<<7)
+#define NDHACK_NO_SMC_CHECK     (1u << 0)
+#define NDHACK_GTE_UNNEEDED     (1u << 1)
+#define NDHACK_GTE_NO_FLAGS     (1u << 2)
+#define NDHACK_OVERRIDE_CYCLE_M (1u << 3)
+#define NDHACK_NO_STALLS        (1u << 4)
+#define NDHACK_NO_COMPAT_HACKS  (1u << 5)
+#define NDHACK_THREAD_FORCE     (1u << 6)
+#define NDHACK_THREAD_FORCE_ON  (1u << 7)
+#define NDHACK_NO_LD_DELAY      (1u << 8)
 
 struct ndrc_globals
 {

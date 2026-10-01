@@ -1750,6 +1750,20 @@ struct retro_core_option_v2_definition option_defs_us[] = {
       "disabled",
    },
    {
+      "pcsx_rearmed_nolddelay",
+      "(Hack) Disable Pipeline Delays",
+      "Disable Pipeline Delays",
+      "For compatibility with older emulators and broken romhacks. Not what real console does, normally should be disabled.",
+      NULL,
+      "compat_hack",
+      {
+         { "disabled", NULL },
+         { "enabled",  NULL },
+         { NULL, NULL },
+      },
+      "disabled",
+   },
+   {
       "pcsx_rearmed_nosmccheck",
       "(Speed Hack) Disable SMC Checks",
       "Disable SMC Checks",

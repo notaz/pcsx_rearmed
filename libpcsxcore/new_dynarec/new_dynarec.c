@@ -7101,7 +7101,7 @@ static int is_ld_use_hazard(const struct decoded_insn *op_ld,
     return 0;
   if (op_ld->itype == LOADLR && op->itype == LOADLR)
     return op_ld->rt1 == op_ld->rs1;
-  return op->itype != CJUMP && op->itype != SJUMP;
+  return op->itype != SJUMP;
 }
 
 static void disassemble_one(struct compile_state *st, int i, u_int src)
@@ -7504,11 +7504,15 @@ static noinline void pass1a_disassemble(struct compile_state *st, u_int pagelimi
     else if (i > 0 && dops[i-1].is_delay_load
              && is_ld_use_hazard(&dops[i-1], &dops[i])
              && (i < 2 || !dops[i-2].is_ujump)) {
-      SysPrintf_lim("load delay @%08x (%08x)\n", start + i*4, start);
-      for (j = i - 1; j > 0 && dops[j-1].is_delay_load; j--)
-        if (dops[j-1].rt1 != dops[i-1].rt1)
-          break;
-      force_j_to_interpreter = 1;
+      int ignored = HACK_ENABLED(NDHACK_NO_LD_DELAY);
+      SysPrintf_lim("load delay @%08x (%08x%s)\n", start + i*4, start,
+          ignored ? ", ignored" : "");
+      if (!ignored) {
+        for (j = i - 1; j > 0 && dops[j-1].is_delay_load; j--)
+          if (dops[j-1].rt1 != dops[i-1].rt1)
+            break;
+        force_j_to_interpreter = 1;
+      }
     }
     if (force_j_to_interpreter) {
       force_intcall(j);

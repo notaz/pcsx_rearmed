@@ -1670,6 +1670,7 @@ static const char h_cfg_noch[]    = "Disables game-specific compatibility hacks"
 static const char h_cfg_nosmc[]   = "Will cause crashes when loading, break memcards";
 static const char h_cfg_gteunn[]  = "May cause graphical glitches";
 static const char h_cfg_gteflgs[] = "Will cause graphical glitches";
+static const char h_cfg_nolddly[] = "Old emulator and broken romhack compat, keep off";
 #endif
 static const char h_cfg_stalls[]  = "Will cause some games to run too fast";
 
@@ -1680,6 +1681,7 @@ static menu_entry e_menu_speed_hacks[] =
 	mee_onoff_h   ("Disable SMC checks",       0, ndrc_g.hacks, NDHACK_NO_SMC_CHECK, h_cfg_nosmc),
 	mee_onoff_h   ("Assume GTE regs unneeded", 0, ndrc_g.hacks, NDHACK_GTE_UNNEEDED, h_cfg_gteunn),
 	mee_onoff_h   ("Disable GTE flags",        0, ndrc_g.hacks, NDHACK_GTE_NO_FLAGS, h_cfg_gteflgs),
+	mee_onoff_h   ("Disable Pipeline Delays",  0, ndrc_g.hacks, NDHACK_NO_LD_DELAY, h_cfg_nolddly),
 #endif
 	mee_onoff_h   ("Disable CPU/GTE stalls",   0, menu_iopts[0], 1, h_cfg_stalls),
 	mee_end,
@@ -2164,7 +2166,7 @@ static int reset_game(void)
 	if (CheckResetManualExe())
 		return 0;
 	if (Config.HLE) {
-		if (LoadCdrom() == -1)
+		if (LoadCdromMainExe(NULL) == -1)
 			return -1;
 	}
 	return 0;
@@ -2237,7 +2239,7 @@ static int run_exe(void)
 	return 0;
 }
 
-static int run_cd_image(const char *fname)
+static int run_cd_image(const char *fname, const char *exe_save_path)
 {
 	int autoload_state = g_autostateld_opt;
 	size_t fname_len = strlen(fname);
@@ -2271,7 +2273,7 @@ static int run_cd_image(const char *fname)
 	SysReset();
 
 	// Read main executable directly from CDRom and start it
-	if (LoadCdrom() == -1) {
+	if (LoadCdromMainExe(exe_save_path) == -1) {
 		ClosePlugins();
 		menu_update_msg("failed to load CD image");
 		return -1;
@@ -2305,11 +2307,11 @@ static int run_cd_image(const char *fname)
 	return 0;
 }
 
-int menu_load_cd_image(const char *fname)
+int menu_load_cd_image(const char *fname, const char *exe_save_path)
 {
 	int prev_gpu, prev_spu;
 
-	if (run_cd_image(fname) != 0)
+	if (run_cd_image(fname, exe_save_path) != 0)
 		return -1;
 
 	prev_gpu = gpu_plugsel;
@@ -2321,7 +2323,7 @@ int menu_load_cd_image(const char *fname)
 	// loading if game config changed plugins to reload them
 	if (prev_gpu != gpu_plugsel || prev_spu != spu_plugsel) {
 		printf("plugin change detected, reloading plugins...\n");
-		if (run_cd_image(fname) != 0)
+		if (run_cd_image(fname, NULL) != 0)
 			return -1;
 	}
 
@@ -2344,7 +2346,7 @@ static int romsel_run(void)
 
 	ndrc_clear_full();
 
-	return menu_load_cd_image(fname);
+	return menu_load_cd_image(fname, NULL);
 }
 
 static int swap_cd_image(void)

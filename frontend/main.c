@@ -588,8 +588,11 @@ int main(int argc, char *argv[])
 	char isofilename[MAXPATHLEN];
 	const char *cdfile = NULL;
 	const char *loadst_f = NULL;
+	const char *save_exe_f = NULL;
 	int psxout = 0;
 	int psxin = 0;
+	int nothread = 0;
+	int nodrc = 0;
 	int loadst = 0;
 	int retval = 0;
 	int i;
@@ -604,6 +607,10 @@ int main(int argc, char *argv[])
 			psxin = 1;
 		else if (!strcmp(argv[i], "-novid"))
 			g_novideo = 1;
+		else if (!strcmp(argv[i], "-nothread"))
+			nothread = 1;
+		else if (!strcmp(argv[i], "-nodrc"))
+			nodrc = 1;
 		else if (!strcmp(argv[i], "-load")) {
 			if (i+1 >= argc) break;
 			loadst = atol(argv[++i]);
@@ -632,6 +639,10 @@ int main(int argc, char *argv[])
 			if (i+1 >= argc) break;
 			loadst_f = argv[++i];
 		}
+		else if (!strcmp(argv[i], "-exesave")) {
+			if (i+1 >= argc) break;
+			save_exe_f = argv[++i];
+		}
 		else if (!strcmp(argv[i], "-h") ||
 			 !strcmp(argv[i], "-help") ||
 			 !strcmp(argv[i], "--help")) {
@@ -644,8 +655,11 @@ int main(int argc, char *argv[])
 				"\t-psxout,-stdout\tEnable PSX stdout\n"
 				"\t-psxin,-stdin\tConnect host stdin to PSX stdin\n"
 				"\t-novid\t\tNo video output, menu or window\n"
+				"\t-nothread\tDon't use any threads\n"
+				"\t-nodrc\t\tDisable dynamic recompiler\n"
 				"\t-load STATENUM\tLoads savestate STATENUM (1-9)\n"
 				"\t-loadf FILE\tLoads savestate from FILE\n"
+				"\t-exesave FILE\tWrite main game exe fo FILE\n"
 				"\t-h,-help\tDisplay this message\n"
 				"\tfile\t\tLoads a PSX EXE file\n"));
 			 return 0;
@@ -674,6 +688,17 @@ int main(int argc, char *argv[])
 	plat_init();
 	menu_init(); // loads config
 
+	if (nothread) {
+		ndrc_g.hacks |= NDHACK_THREAD_FORCE;
+		ndrc_g.hacks &= ~NDHACK_THREAD_FORCE_ON;
+		spu_config.iUseThread = 0;
+		pl_rearmed_cbs.thread_rendering = 0;
+		cdra_set_buf_count(0);
+	}
+	if (nodrc)
+		Config.Cpu = 1;
+
+	// starts some threads
 	if (emu_core_init() != 0)
 		return 1;
 
@@ -707,7 +732,7 @@ int main(int argc, char *argv[])
 			ready_to_go = 1;
 	} else {
 		if (cdfile)
-			ready_to_go = menu_load_cd_image(cdfile) == 0;
+			ready_to_go = menu_load_cd_image(cdfile, save_exe_f) == 0;
 	}
 
 	if (loadst_f) {
