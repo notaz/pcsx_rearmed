@@ -4,6 +4,9 @@
 #ifndef NULL
 #define NULL (void *)0
 #endif
+#ifndef ARRAY_SIZE
+#define ARRAY_SIZE(x) (sizeof(x) / sizeof((x)[0]))
+#endif
 
 #define u8      unsigned char
 #define u16     unsigned short
@@ -465,13 +468,25 @@ static void test_gte_rtps(struct tstate *st)
     }
 }
 
+static const struct {
+    const char *name;
+    int (*test)(int *array_012); // returns 1 if failed
+} func_tests[] = {
+    { "cpu_delay0",   cpu_delay0 },
+    { "cpu_delay1",   cpu_delay1 },
+    { "cpu_delay_j0", cpu_delay_j0 },
+    { "cpu_delay_j1", cpu_delay_j1 },
+};
+
 int main()
 {
     struct tstate st = { (u8 *)0x1f800000, 0, };
+    int array_012[] = { 0, 1, 2 };
     register u32 ra asm("ra");
     u8 rirq, buf[16];
     int have_cd;
     int len;
+    u32 i;
 
     printf("started, ra=%x\n", ra);
     printf("irq stat/mask %08x/%08x\n", HW16(st.hw, 0x1070), HW16(st.hw, 0x1074));
@@ -483,6 +498,17 @@ int main()
         : "=&r"(len) : "r"(1u << 30));
     test_gte_rtps(&st);
 
+    // func_tests
+    for (i = 0; i < ARRAY_SIZE(func_tests); i++) {
+        int ret = func_tests[i].test(array_012);
+        if (ret)
+            printf("%s:%d: %s: %d\n", __FILE__, __LINE__, func_tests[i].name, ret);
+        else
+            st.tp++;
+        st.tt++;
+    }
+
+    // cdrom
     test_cdrom_irqen(&st);
     cdr_w_irqf(st.hw, 0x5f); // ack irq, clear param fifo
     // query with an invalid cmd to not lose the valuable STATUS_SHELLOPEN bit

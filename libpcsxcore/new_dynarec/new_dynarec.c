@@ -7101,7 +7101,7 @@ static int is_ld_use_hazard(const struct decoded_insn *op_ld,
     return 0;
   if (op_ld->itype == LOADLR && op->itype == LOADLR)
     return op_ld->rt1 == op_ld->rs1;
-  return op->itype != CJUMP && op->itype != SJUMP;
+  return op->itype != SJUMP;
 }
 
 static void disassemble_one(struct compile_state *st, int i, u_int src)

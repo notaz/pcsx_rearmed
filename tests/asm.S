@@ -1,16 +1,18 @@
-    .set noreorder
-    .align 2
-    .global printf
-    .type printf, @function
-printf:
+#define FUNCTION(name) \
+    .globl name; \
+    .type name, @function; \
+    name
+
+.set noreorder
+.align 2
+
+FUNCTION(printf):
     li    $t2, 0xa0
     jr    $t2
     li    $t1, 0x3f
 
 
-    .global syscall_a0
-    .type syscall_a0, @function
-syscall_a0:
+FUNCTION(syscall_a0):
     move  $t1, $a0
     move  $a0, $a1
     move  $a1, $a2
@@ -19,9 +21,7 @@ syscall_a0:
     move  $a2, $a3
 
 
-    .global memset
-    .type memset, @function
-memset:
+FUNCTION(memset):
     beqz  $a2, 1f
     move  $v0, $a0
 0:
@@ -30,6 +30,48 @@ memset:
     bnez  $a2, 0b
     addiu $a0, 1
 1:
+    jr    $ra
+    nop
+
+
+FUNCTION(cpu_delay0):
+    lw    $v1, 0($a0)  # 0
+    nop
+    lw    $v0, 4($a0)  # 1
+    move  $v0, $v1
+    jr    $ra
+    nop
+
+
+FUNCTION(cpu_delay1):
+    lw    $v0, 4($a0)  # 1
+    nop
+    lw    $v0, 8($a0)  # 2
+    addiu $v0, -1
+    jr    $ra
+    nop
+
+
+FUNCTION(cpu_delay_j0):
+    lw    $v0, 8($a0)  # 2
+    nop
+    lw    $v0, 0($a0)  # 0
+    bnez  $v0, 0f
+    nop
+    li    $v0, 1
+0: # ok
+    jr    $ra
+    nop
+
+
+FUNCTION(cpu_delay_j1):
+    lw    $v0, 8($a0)  # 2
+    nop
+    lw    $v0, 0($a0)  # 0
+    bgtz  $v0, 0f
+    nop
+    li    $v0, 1
+0: # ok
     jr    $ra
     nop
 
@@ -57,18 +99,14 @@ memset:
     sw    $t0, 16*4($a0)
 .endm
 
-    .global gte_rtps_sf1lm0
-    .type gte_rtps_sf1lm0, @function
-gte_rtps_sf1lm0:
+FUNCTION(gte_rtps_sf1lm0):
     cop2  0x0180001    # RTPS sf=1 lm=0
     gte_store_rtps_regs
     jr    $ra
     nop
 
 # same, but FLAG is overwritten by NCLIP, so a flagless RTPS variant may be used
-    .global gte_rtps_sf1lm0_nclip
-    .type gte_rtps_sf1lm0_nclip, @function
-gte_rtps_sf1lm0_nclip:
+FUNCTION(gte_rtps_sf1lm0_nclip):
     cop2  0x0180001    # RTPS sf=1 lm=0
     cop2  0x1400006    # NCLIP
     gte_store_rtps_regs
