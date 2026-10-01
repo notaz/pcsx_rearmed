@@ -353,7 +353,7 @@ int main(int argc, char **argv)
 			ready_to_go = 1;
 	} else {
 		if (cdfile) {
-			if (LoadCdrom() == -1) {
+			if (LoadCdromMainExe(NULL) == -1) {
 				ClosePlugins();
 				printf(_("Could not load CD-ROM!\n"));
 				return -1;

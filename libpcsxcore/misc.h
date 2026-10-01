@@ -59,7 +59,7 @@ extern int  CdromFrontendId; // for frontend use
 
 int BiosBootBypass();
 
-int LoadCdrom();
+int LoadCdromMainExe(const char *exe_save_path);
 int LoadCdromFile(const char *filename, int full, EXE_HEADER *head, u8 *time_bcd_out);
 int CheckCdrom();
 int CheckResetManualExe();

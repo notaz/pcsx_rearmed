@@ -2164,7 +2164,7 @@ static int reset_game(void)
 	if (CheckResetManualExe())
 		return 0;
 	if (Config.HLE) {
-		if (LoadCdrom() == -1)
+		if (LoadCdromMainExe(NULL) == -1)
 			return -1;
 	}
 	return 0;
@@ -2237,7 +2237,7 @@ static int run_exe(void)
 	return 0;
 }
 
-static int run_cd_image(const char *fname)
+static int run_cd_image(const char *fname, const char *exe_save_path)
 {
 	int autoload_state = g_autostateld_opt;
 	size_t fname_len = strlen(fname);
@@ -2271,7 +2271,7 @@ static int run_cd_image(const char *fname)
 	SysReset();
 
 	// Read main executable directly from CDRom and start it
-	if (LoadCdrom() == -1) {
+	if (LoadCdromMainExe(exe_save_path) == -1) {
 		ClosePlugins();
 		menu_update_msg("failed to load CD image");
 		return -1;
@@ -2305,11 +2305,11 @@ static int run_cd_image(const char *fname)
 	return 0;
 }
 
-int menu_load_cd_image(const char *fname)
+int menu_load_cd_image(const char *fname, const char *exe_save_path)
 {
 	int prev_gpu, prev_spu;
 
-	if (run_cd_image(fname) != 0)
+	if (run_cd_image(fname, exe_save_path) != 0)
 		return -1;
 
 	prev_gpu = gpu_plugsel;
@@ -2321,7 +2321,7 @@ int menu_load_cd_image(const char *fname)
 	// loading if game config changed plugins to reload them
 	if (prev_gpu != gpu_plugsel || prev_spu != spu_plugsel) {
 		printf("plugin change detected, reloading plugins...\n");
-		if (run_cd_image(fname) != 0)
+		if (run_cd_image(fname, NULL) != 0)
 			return -1;
 	}
 
@@ -2344,7 +2344,7 @@ static int romsel_run(void)
 
 	ndrc_clear_full();
 
-	return menu_load_cd_image(fname);
+	return menu_load_cd_image(fname, NULL);
 }
 
 static int swap_cd_image(void)

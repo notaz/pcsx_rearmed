@@ -588,6 +588,7 @@ int main(int argc, char *argv[])
 	char isofilename[MAXPATHLEN];
 	const char *cdfile = NULL;
 	const char *loadst_f = NULL;
+	const char *save_exe_f = NULL;
 	int psxout = 0;
 	int psxin = 0;
 	int nothread = 0;
@@ -635,6 +636,10 @@ int main(int argc, char *argv[])
 			if (i+1 >= argc) break;
 			loadst_f = argv[++i];
 		}
+		else if (!strcmp(argv[i], "-exesave")) {
+			if (i+1 >= argc) break;
+			save_exe_f = argv[++i];
+		}
 		else if (!strcmp(argv[i], "-h") ||
 			 !strcmp(argv[i], "-help") ||
 			 !strcmp(argv[i], "--help")) {
@@ -650,6 +655,7 @@ int main(int argc, char *argv[])
 				"\t-nothread\tDon't use any threads\n"
 				"\t-load STATENUM\tLoads savestate STATENUM (1-9)\n"
 				"\t-loadf FILE\tLoads savestate from FILE\n"
+				"\t-exesave FILE\tWrite main game exe fo FILE\n"
 				"\t-h,-help\tDisplay this message\n"
 				"\tfile\t\tLoads a PSX EXE file\n"));
 			 return 0;
@@ -720,7 +726,7 @@ int main(int argc, char *argv[])
 			ready_to_go = 1;
 	} else {
 		if (cdfile)
-			ready_to_go = menu_load_cd_image(cdfile) == 0;
+			ready_to_go = menu_load_cd_image(cdfile, save_exe_f) == 0;
 	}
 
 	if (loadst_f) {

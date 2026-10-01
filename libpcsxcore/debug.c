@@ -367,7 +367,7 @@ void DebugVSync() {
         CheckCdrom();
         SysReset();
         if (reset == 2)
-            LoadCdrom();
+            LoadCdromMainExe(NULL);
         reset = resetting = 0;
         return;
     }

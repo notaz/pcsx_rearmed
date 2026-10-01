@@ -2176,7 +2176,7 @@ bool retro_load_game(const struct retro_game_info *info)
    if (is_exe)
       ret = Load(info->path);
    else
-      ret = LoadCdrom();
+      ret = LoadCdromMainExe(NULL);
    if (ret != 0)
    {
       LogErr("could not load %s (%d)\n", is_exe ? "exe" : "CD", ret);
@@ -3499,7 +3499,7 @@ void retro_run(void)
       if (CheckResetManualExe())
          ;
       else if (Config.HLE)
-         LoadCdrom();
+         LoadCdromMainExe(NULL);
    }
 
    set_vout_fb();

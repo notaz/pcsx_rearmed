@@ -217,12 +217,13 @@ static void getFromCnf(char *buf, const char *key, u32 *val)
 	}
 }
 
-int LoadCdrom() {
+int LoadCdromMainExe(const char *exe_save_path) {
 	union {
 		EXE_HEADER h;
 		u32 d[sizeof(EXE_HEADER) / sizeof(u32)];
 	} tmpHead;
 	struct iso_directory_record *dir;
+	FILE *save_file = NULL;
 	u8 time[4], *buf;
 	u8 mdir[4096];
 	char exename[256];
@@ -236,7 +237,7 @@ int LoadCdrom() {
 
 	save_counter = 0;
 
-	if (!Config.HLE) {
+	if (!Config.HLE && !exe_save_path) {
 		if (psxRegs.pc != 0x80030000) // BiosBootBypass'ed or custom BIOS?
 			return 0;
 		if (Config.SlowBoot)
@@ -296,6 +297,13 @@ int LoadCdrom() {
 		READTRACK();
 	}
 
+	if (exe_save_path)
+		save_file = fopen(exe_save_path, "wb");
+	if (save_file)
+		fwrite(buf + 12, 1, 2048, save_file);
+	else if (exe_save_path)
+		SysPrintf("could not open '%s', exe not saved\n", exe_save_path);
+
 	memcpy(&tmpHead, buf + 12, sizeof(EXE_HEADER));
 	for (i = 2; i < sizeof(tmpHead.d) / sizeof(tmpHead.d[0]); i++)
 		tmpHead.d[i] = SWAP32(tmpHead.d[i]);
@@ -317,6 +325,9 @@ int LoadCdrom() {
 
 		t_addr += 2048;
 		t_size -= 2048;
+
+		if (save_file)
+			fwrite(buf + 12, 1, 2048, save_file);
 	}
 
 	psxCpu->Clear(tmpHead.h.t_addr, tmpHead.h.t_size / 4);
@@ -326,6 +337,8 @@ int LoadCdrom() {
 
 	if (Config.HLE)
 		psxBiosCheckExe(tmpHead.h.t_addr, tmpHead.h.t_size, 0);
+	if (save_file)
+		fclose(save_file);
 
 	return 0;
 }
