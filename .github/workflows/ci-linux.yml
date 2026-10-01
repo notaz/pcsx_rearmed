@@ -10,8 +10,11 @@ jobs:
         include:
         - arch: x86_64
           runner: ubuntu-latest
+          test_args: -nodrc
         - arch: arm64
           runner: ubuntu-24.04-arm
+    env:
+      TEST_ARGS: ${{ matrix.test_args }}
     steps:
     - uses: actions/checkout@v5
       with:

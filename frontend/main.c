@@ -592,6 +592,7 @@ int main(int argc, char *argv[])
 	int psxout = 0;
 	int psxin = 0;
 	int nothread = 0;
+	int nodrc = 0;
 	int loadst = 0;
 	int retval = 0;
 	int i;
@@ -608,6 +609,8 @@ int main(int argc, char *argv[])
 			g_novideo = 1;
 		else if (!strcmp(argv[i], "-nothread"))
 			nothread = 1;
+		else if (!strcmp(argv[i], "-nodrc"))
+			nodrc = 1;
 		else if (!strcmp(argv[i], "-load")) {
 			if (i+1 >= argc) break;
 			loadst = atol(argv[++i]);
@@ -653,6 +656,7 @@ int main(int argc, char *argv[])
 				"\t-psxin,-stdin\tConnect host stdin to PSX stdin\n"
 				"\t-novid\t\tNo video output, menu or window\n"
 				"\t-nothread\tDon't use any threads\n"
+				"\t-nodrc\t\tDisable dynamic recompiler\n"
 				"\t-load STATENUM\tLoads savestate STATENUM (1-9)\n"
 				"\t-loadf FILE\tLoads savestate from FILE\n"
 				"\t-exesave FILE\tWrite main game exe fo FILE\n"
@@ -691,6 +695,8 @@ int main(int argc, char *argv[])
 		pl_rearmed_cbs.thread_rendering = 0;
 		cdra_set_buf_count(0);
 	}
+	if (nodrc)
+		Config.Cpu = 1;
 
 	// starts some threads
 	if (emu_core_init() != 0)
