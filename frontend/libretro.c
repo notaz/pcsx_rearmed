@@ -1934,7 +1934,8 @@ static void show_enabled_hacks(void)
       count++;
    }
 #if !defined(DRC_DISABLE) && !defined(LIGHTREC)
-   if (ndrc_g.hacks & (NDHACK_NO_SMC_CHECK|NDHACK_GTE_UNNEEDED|NDHACK_GTE_NO_FLAGS)) {
+   if (ndrc_g.hacks & (NDHACK_NO_SMC_CHECK|NDHACK_GTE_UNNEEDED|NDHACK_GTE_NO_FLAGS|
+                       NDHACK_NO_LD_DELAY)) {
       snprintf(p, sizeof(msg) - (p - msg), "%s%s", count ? ", " : "",
             "DRC Hacks");
       p += strlen(p);
@@ -2616,6 +2617,16 @@ static void update_variables(bool in_flight)
          ndrc_g.hacks |= NDHACK_NO_COMPAT_HACKS;
       else
          ndrc_g.hacks &= ~NDHACK_NO_COMPAT_HACKS;
+   }
+
+   var.value = NULL;
+   var.key = "pcsx_rearmed_nolddelay";
+   if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value)
+   {
+      if (strcmp(var.value, "enabled") == 0)
+         ndrc_g.hacks |= NDHACK_NO_LD_DELAY;
+      else
+         ndrc_g.hacks &= ~NDHACK_NO_LD_DELAY;
    }
 #endif /* !DRC_DISABLE && !LIGHTREC */
 

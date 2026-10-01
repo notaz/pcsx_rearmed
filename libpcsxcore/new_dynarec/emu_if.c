@@ -291,8 +291,6 @@ static void ari64_notify(enum R3000Anote note, void *data) {
 
 static void ari64_apply_config()
 {
-	int thread_changed;
-
 	ari64_thread_sync();
 	intApplyConfig();
 
@@ -301,15 +299,12 @@ static void ari64_apply_config()
 	else
 		ndrc_g.hacks &= ~NDHACK_NO_STALLS;
 
-	thread_changed = ((ndrc_g.hacks | ndrc_g.hacks_pergame) ^ ndrc_g.hacks_old)
-		& (NDHACK_THREAD_FORCE | NDHACK_THREAD_FORCE_ON);
 	if (Config.cycle_multiplier != ndrc_g.cycle_multiplier_old
 	    || (ndrc_g.hacks | ndrc_g.hacks_pergame) != ndrc_g.hacks_old)
 	{
 		new_dynarec_clear_full();
 	}
-	if (thread_changed)
-		ari64_thread_init();
+	ari64_thread_init();
 }
 
 #ifdef NDRC_THREAD
@@ -548,7 +543,8 @@ static void ari64_thread_init(void)
 {
 	int enable;
 
-	if (ndrc_g.hacks_pergame & NDHACK_THREAD_FORCE)
+	if ((ndrc_g.hacks_pergame & NDHACK_THREAD_FORCE) ||
+	    (ndrc_g.hacks & NDHACK_NO_LD_DELAY))
 		enable = 0;
 	else if (ndrc_g.hacks & NDHACK_THREAD_FORCE)
 		enable = ndrc_g.hacks & NDHACK_THREAD_FORCE_ON;

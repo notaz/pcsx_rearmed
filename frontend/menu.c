@@ -1670,6 +1670,7 @@ static const char h_cfg_noch[]    = "Disables game-specific compatibility hacks"
 static const char h_cfg_nosmc[]   = "Will cause crashes when loading, break memcards";
 static const char h_cfg_gteunn[]  = "May cause graphical glitches";
 static const char h_cfg_gteflgs[] = "Will cause graphical glitches";
+static const char h_cfg_nolddly[] = "Old emulator and broken romhack compat, keep off";
 #endif
 static const char h_cfg_stalls[]  = "Will cause some games to run too fast";
 
@@ -1680,6 +1681,7 @@ static menu_entry e_menu_speed_hacks[] =
 	mee_onoff_h   ("Disable SMC checks",       0, ndrc_g.hacks, NDHACK_NO_SMC_CHECK, h_cfg_nosmc),
 	mee_onoff_h   ("Assume GTE regs unneeded", 0, ndrc_g.hacks, NDHACK_GTE_UNNEEDED, h_cfg_gteunn),
 	mee_onoff_h   ("Disable GTE flags",        0, ndrc_g.hacks, NDHACK_GTE_NO_FLAGS, h_cfg_gteflgs),
+	mee_onoff_h   ("Disable Pipeline Delays",  0, ndrc_g.hacks, NDHACK_NO_LD_DELAY, h_cfg_nolddly),
 #endif
 	mee_onoff_h   ("Disable CPU/GTE stalls",   0, menu_iopts[0], 1, h_cfg_stalls),
 	mee_end,
