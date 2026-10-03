@@ -87,12 +87,12 @@ extern void lightrec_code_inv(void *ptr, uint32_t len);
 
 static char cache_buf[64 * 1024];
 
-static void cop2_op(struct lightrec_state *state, u32 func)
+static lightrec_gte_handler_t get_gte_hdl(u32 code, bool nf)
 {
-	struct lightrec_registers *regs = lightrec_get_registers(state);
-	/* This works because regs->cp2c comes right after regs->cp2d,
-	 * so it can be cast to a pcsxCP2Regs pointer. */
-	gteDispatch((psxCP2Regs *)regs->cp2d, func);
+	if (nf)
+		return (lightrec_gte_handler_t)gteGetHandler_nf(code);
+	else
+		return (lightrec_gte_handler_t)gteGetHandler(code);
 }
 
 static bool has_interrupt(void)
@@ -380,7 +380,7 @@ static bool lightrec_can_hw_direct(u32 kaddr, bool is_write, u8 size)
 }
 
 static const struct lightrec_ops lightrec_ops = {
-	.cop2_op = cop2_op,
+	.cop2_hdl = get_gte_hdl,
 	.enable_ram = lightrec_enable_ram,
 	.hw_direct = lightrec_can_hw_direct,
 	.code_inv = LIGHTREC_CODE_INV ? lightrec_code_inv : NULL,
@@ -517,19 +517,18 @@ static void print_for_big_ass_debugger(void)
 				hash_calculate_le(psxRegs.ptrs.psxH, 0x400),
 				hash_calculate_le(psxRegs.ptrs.psxH + 0x1000, 0x2000));
 
-	printf(" CP0 0x%08x CP2D 0x%08x CP2C 0x%08x INT 0x%04x INTCYCLE 0x%08x GPU 0x%08x",
+	printf(" CP0 0x%08x CP2 0x%08x INT 0x%04x INTCYCLE 0x%08x GPU 0x%08x",
 			hash_calculate(regs->cp0, sizeof(regs->cp0)),
-			hash_calculate(regs->cp2d, sizeof(regs->cp2d)),
-			hash_calculate(regs->cp2c, sizeof(regs->cp2c)),
+			hash_calculate(&regs->cp2, sizeof(regs->cp2)),
 			psxRegs.interrupt,
 			hash_calculate(psxRegs.intCycle, sizeof(psxRegs.intCycle)),
 			LE32TOH(HW_GPU_STATUS));
 
 	if (lightrec_very_debug) {
 		for (i = 0; i < 32; i++)
-			printf(" CP2D%u 0x%08x", i, regs->cp2d[i]);
+			printf(" CP2D%u 0x%08x", i, regs->cp2.cp2d[i]);
 		for (i = 0; i < 32; i++)
-			printf(" CP2C%u 0x%08x", i, regs->cp2c[i]);
+			printf(" CP2C%u 0x%08x", i, regs->cp2.cp2c[i]);
 	}
 
 	if (lightrec_very_debug)
@@ -725,7 +724,7 @@ static void lightrec_plugin_sync_regs_from_pcsx(bool need_cp2)
 	memcpy(regs->gpr, &psxRegs.GPR, sizeof(regs->gpr));
 	memcpy(regs->cp0, &psxRegs.CP0, sizeof(regs->cp0));
 	if (need_cp2)
-		memcpy(regs->cp2d, &psxRegs.CP2, sizeof(regs->cp2d) + sizeof(regs->cp2c));
+		memcpy(&regs->cp2, &psxRegs.CP2, sizeof(regs->cp2));
 }
 
 static void lightrec_plugin_sync_regs_to_pcsx(bool need_cp2)
@@ -736,7 +735,7 @@ static void lightrec_plugin_sync_regs_to_pcsx(bool need_cp2)
 	memcpy(&psxRegs.GPR, regs->gpr, sizeof(regs->gpr));
 	memcpy(&psxRegs.CP0, regs->cp0, sizeof(regs->cp0));
 	if (need_cp2)
-		memcpy(&psxRegs.CP2, regs->cp2d, sizeof(regs->cp2d) + sizeof(regs->cp2c));
+		memcpy(&psxRegs.CP2, &regs->cp2, sizeof(regs->cp2));
 }
 
 R3000Acpu psxRec =
