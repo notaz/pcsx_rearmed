@@ -183,7 +183,11 @@
 
 // mac 123 without flags (expensive to calculate, rarely used)
 // if your platform is slow, consider adding it here
-#if defined(FLAGLESS) || (defined(__arm__) && !defined(HAVE_ARMV5))
+#if !defined(GTE_MAC123_FLAGLESS) && (defined(FLAGLESS) || (defined(__arm__) && !defined(HAVE_ARMV5)))
+#define GTE_MAC123_FLAGLESS 1
+#endif
+
+#if GTE_MAC123_FLAGLESS
 
 static inline s64 mac123add4(u32 id, u32 *flags, s32 a1, s32 a2, s32 a3, s32 a4, int shift) {
 	return (((s64)a1 << 12) + a2 + a3 + a4) >> shift;
