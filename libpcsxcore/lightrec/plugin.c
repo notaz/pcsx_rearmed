@@ -379,7 +379,7 @@ static bool lightrec_can_hw_direct(u32 kaddr, bool is_write, u8 size)
 	return true;
 }
 
-static const struct lightrec_ops lightrec_ops = {
+struct lightrec_ops lightrec_ops = {
 	.cop2_hdl = get_gte_hdl,
 	.enable_ram = lightrec_enable_ram,
 	.hw_direct = lightrec_can_hw_direct,
