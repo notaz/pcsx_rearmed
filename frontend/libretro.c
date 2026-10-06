@@ -1358,6 +1358,9 @@ bool retro_unserialize(const void *data, size_t size)
       return false;
    if (CdromFrontendId != -1 && CdromFrontendId != disk_current_index)
       disk_set_image_index(CdromFrontendId);
+   /* a successful restore overrides any reset requested before this call,
+    * otherwise the next retro_run() would silently discard it */
+   reset_pending = false;
    return true;
 }
 
