@@ -598,7 +598,9 @@ int padFreeze(void *f, int Mode)
 			if (g.pads[i].saveSize != sizeof(g.pads[i]))
 				SaveFuncs.seek(f, g.pads[i].saveSize - sizeof(g.pads[i]),
 						SEEK_CUR);
-			if (controllerType)
+			// controllerType 0 also means this pad slot was never
+			// polled, not an actual type change
+			if (controllerType && g.pads[i].controllerType)
 				changed |= controllerType != g.pads[i].controllerType;
 			changed |= portMultitap != g.pads[i].portMultitap;
 		}
