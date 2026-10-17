@@ -635,6 +635,9 @@ static void lightrec_plugin_execute_block(psxRegisters *regs,
 	enum blockExecCaller caller)
 {
 	lightrec_plugin_execute_internal(true);
+	/* HLE checks $k0 to detect MIPS exception returns. */
+	if (caller == EXEC_CALLER_HLE)
+		regs->GPR.n.k0 = lightrec_get_registers(lightrec_state)->gpr[26];
 }
 
 static void lightrec_plugin_clear(u32 addr, u32 size)
