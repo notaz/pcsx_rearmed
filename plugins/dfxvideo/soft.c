@@ -119,22 +119,18 @@ unsigned char dithertable[16] =
 static inline void Dither16(unsigned short * pdest,uint32_t r,uint32_t g,uint32_t b,unsigned short sM)
 {
  unsigned char coeff;
- unsigned char rlow, glow, blow;
  int x,y;
                  
  x=pdest-psxVuw;
  y=x>>10;
  x-=(y<<10);
 
- coeff = dithertable[(y&3)*4+(x&3)];
+ coeff = 7-dithertable[(y&3)*4+(x&3)];
 
- rlow = r&7; glow = g&7; blow = b&7;
+ r=(r+coeff)>>3; g=(g+coeff)>>3; b=(b+coeff)>>3;
 
- r>>=3; g>>=3; b>>=3;
-
- if ((r < 0x1F) && rlow > coeff) r++;
- if ((g < 0x1F) && glow > coeff) g++;
- if ((b < 0x1F) && blow > coeff) b++;
+ /* Clamped 8-bit inputs can round only as high as 32. */
+ r-=r>>5; g-=g>>5; b-=b>>5;
 
  PUTLE16(pdest, ((unsigned short)b<<10) |
         ((unsigned short)g<<5) |
