@@ -14,6 +14,7 @@
 #include "../gpu.h"
 #include "../gte.h"
 #include "../mdec.h"
+#include "../psxbios.h"
 #include "../psxdma.h"
 #include "../psxhw.h"
 #include "../psxmem.h"
@@ -553,6 +554,8 @@ static void lightrec_plugin_execute_internal(bool block_only)
 
 	regs = lightrec_get_registers(lightrec_state);
 	gen_interupt((psxCP0Regs *)regs->cp0);
+	if (block_only && psxRegs.cpuInRecursion && psxBiosSoftcallEnded())
+		return;
 	if (!block_only && psxRegs.stop)
 		return;
 
