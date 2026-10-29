@@ -24,8 +24,6 @@
 #include "psxcounters.h"
 #include "psxevents.h"
 #include "gpu.h"
-//#include "debug.h"
-#define DebugVSync()
 
 /******************************************************************************/
 
@@ -66,6 +64,10 @@ static const u32 HSyncTotal[]     = { 263, 314 };
 #define VBlankStart 240 // todo: depend on the actual GPU setting
 
 #define VERBOSE_LEVEL 0
+#if VERBOSE_LEVEL > 0
+#include <stdio.h>
+#include <stdarg.h>
+#endif
 
 /******************************************************************************/
 #ifdef DRC_DISABLE
@@ -447,10 +449,6 @@ void psxRcntUpdate()
     }
 
     psxRcntSet();
-
-#if 0 //ndef NDEBUG
-    DebugVSync();
-#endif
 }
 
 /******************************************************************************/

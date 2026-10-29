@@ -29,8 +29,6 @@
 #include "psxmem_map.h"
 #include "r3000a.h"
 #include "psxhw.h"
-//#include "debug.h"
-#define DebugCheckBP(...)
 
 #include "lightrec/mem.h"
 #include "memmap.h"

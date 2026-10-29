@@ -64,10 +64,6 @@ static const char *get_home_dir(void);
 #define BOOT_MSG "Booting up..."
 #endif
 
-// don't include debug.h - it breaks ARM build (R1 redefined)
-static void StartDebugger() {}
-static void StopDebugger() {}
-
 int ready_to_go, g_emu_want_quit, g_emu_resetting;
 int g_novideo;
 unsigned long gpuDisp;
@@ -483,10 +479,6 @@ int emu_core_init(void)
 	}
 
 	LoadMcds(Config.Mcd1, Config.Mcd2);
-
-	if (Config.Debug) {
-		StartDebugger();
-	}
 
 	return 0;
 }
@@ -924,8 +916,6 @@ void SysReset() {
 void SysClose() {
 	EmuShutdown();
 	ReleasePlugins();
-
-	StopDebugger();
 }
 
 #ifndef HAVE_LIBRETRO
