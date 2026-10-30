@@ -701,6 +701,17 @@ static inline force_inline void gteMVMVA(psxCP2Regs *regs,
 	const s32 *cvp = (s32 *)&regs->CP2C.r[(cv << 3) + 5];
 	const s32 cv3[3] = { 0, 0, 0 };
 	s16 mx3[9];
+#if __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
+	const s16 v0[3] = { VX(v), VY(v), VZ(v) };
+	int i;
+
+	vp = v0;
+	if (mx < 3) {
+		mxp = mx3;
+		for (i = 0; i < 9; i++)
+			mx3[i] = regs->CP2C.r[(mx << 3) + (i >> 1)] >> ((i & 1) * 16);
+	}
+#endif
 
 	GTE_LOG("GTE MVMVA\n");
 
@@ -799,6 +810,12 @@ static inline force_inline void runColor1(psxCP2Regs *regs, u32 *flags, int shif
 	s32 mac1, mac2, mac3;
 	s32 ir1, ir2, ir3;
 	s32 vx, vy, vz;
+#if __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
+	const s16 color_matrix[9] = { gteLR1, gteLR2, gteLR3,
+		gteLG1, gteLG2, gteLG3, gteLB1, gteLB2, gteLB3 };
+#else
+	const s16 *color_matrix = &gteLR1;
+#endif
 
 	vx = VX(v);
 	vy = VY(v);
@@ -809,7 +826,7 @@ static inline force_inline void runColor1(psxCP2Regs *regs, u32 *flags, int shif
 	ir1 = limB1(flags, mac1, lm);
 	ir2 = limB2(flags, mac2, lm);
 	ir3 = limB3(flags, mac3, lm);
-	*flags |= gteMAC123f(regs, ir1, ir2, ir3, &gteLR1, &gteRBK, shift);
+	*flags |= gteMAC123f(regs, ir1, ir2, ir3, color_matrix, &gteRBK, shift);
 	mac1 = gteMAC1;
 	mac2 = gteMAC2;
 	mac3 = gteMAC3;
@@ -1071,8 +1088,14 @@ static inline void runColor3(psxCP2Regs *regs, int shift, int lm, int is_cdp)
 	s32 mac1, mac2, mac3;
 	s32 ir1, ir2, ir3;
 	u32 flags;
+#if __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
+	const s16 color_matrix[9] = { gteLR1, gteLR2, gteLR3,
+		gteLG1, gteLG2, gteLG3, gteLB1, gteLB2, gteLB3 };
+#else
+	const s16 *color_matrix = &gteLR1;
+#endif
 
-	flags = gteMAC123f(regs, gteIR1, gteIR2, gteIR3, &gteLR1, &gteRBK, shift);
+	flags = gteMAC123f(regs, gteIR1, gteIR2, gteIR3, color_matrix, &gteRBK, shift);
 	ir1 = limB1(&flags, gteMAC1, lm);
 	ir2 = limB2(&flags, gteMAC2, lm);
 	ir3 = limB3(&flags, gteMAC3, lm);
