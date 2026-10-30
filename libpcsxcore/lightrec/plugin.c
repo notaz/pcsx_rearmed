@@ -2,7 +2,9 @@
 #include <stdbool.h>
 #include <stdio.h>
 #include <unistd.h>
+#ifndef __PS3__
 #include <signal.h>
+#endif
 #include <assert.h>
 
 #if P_HAVE_MMAP
@@ -439,7 +441,7 @@ static int lightrec_plugin_init(void)
 	// 		(uintptr_t) psxRegs.ptrs.psxR,
 	// 		(uintptr_t) psxRegs.ptrs.psxH);
 
-#ifndef _WIN32
+#if !defined(_WIN32) && !defined(__PS3__)
 	signal(SIGPIPE, exit);
 #endif
 	lightrec_plugin_apply_config();

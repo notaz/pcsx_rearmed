@@ -9,7 +9,9 @@
 #include <string.h>
 #include <stdarg.h>
 #include <unistd.h>
+#ifndef NO_FRONTEND
 #include <signal.h>
+#endif
 #include <time.h>
 #if !defined(_WIN32) && !defined(NO_DYLIB)
 #include <dlfcn.h>

@@ -303,11 +303,14 @@ else ifeq ($(platform), arm64)
 # Lightweight PS3 Homebrew SDK
 else ifeq ($(platform), psl1ght)
 	TARGET := $(TARGET_NAME)_libretro_psl1ght.a
-	CFLAGS += -DBLARGG_BIG_ENDIAN=1 -D__ppc__
+	PSL1GHT ?= $(PS3DEV)
+	CFLAGS += -DBLARGG_BIG_ENDIAN=1 -D__ppc__ -D__PS3__ -D__PSL1GHT__
+	CFLAGS += -I$(PSL1GHT)/ppu/include
 	CFLAGS += -DNO_DYLIB
 	NO_UNDEF_CHECK := 1
 	STATIC_LINKING := 1
 	NO_MMAP := 1
+	NO_POSIX_MEMALIGN := 1
 	LIBPTHREAD :=
 	LIBDL :=
 	NEED_SYSCONF := 1
