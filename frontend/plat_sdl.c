@@ -137,6 +137,7 @@ static int vout_fullscreen_old;
 static int forced_clears;
 static int forced_flips;
 static int sdl12_compat;
+static int sdl_dispmanx;
 static int resized;
 static int in_menu;
 
@@ -255,6 +256,11 @@ void plat_init(void)
   ver = SDL_Linked_Version();
   sdl12_compat = ver->patch >= 50;
   printf("SDL %u.%u.%u compat=%d\n", ver->major, ver->minor, ver->patch, sdl12_compat);
+  {
+    char vid_drv[32];
+    sdl_dispmanx = SDL_VideoDriverName(vid_drv, sizeof(vid_drv)) &&
+      strcmp(vid_drv, "dispmanx") == 0;
+  }
 
   in_menu = 1;
   SDL_WM_SetCaption("PCSX-ReARMed " REV, NULL);
@@ -593,6 +599,9 @@ static void change_mode(int w, int h)
   int set_w = w, set_h = h, had_overlay = 0, had_gl = 0;
   if (plat_target.vout_fullscreen && (plat_target.vout_method != 0 || !sdl12_compat))
     set_w = fs_w, set_h = fs_h;
+  if (sdl_dispmanx)
+    // RPi dispmanx shows a slanted picture if the width is not a multiple of 16
+    set_w = (set_w + 15) & ~15;
   if (plat_sdl_screen->w != set_w || plat_sdl_screen->h != set_h ||
       plat_target.vout_fullscreen != vout_fullscreen_old)
   {
