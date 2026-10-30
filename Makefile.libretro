@@ -319,6 +319,11 @@ else ifeq ($(platform), psl1ght)
 	USE_ASYNC_GPU = 0
 	USE_ASYNC_SPU = 0
 	USE_LIBRETRO_VFS = 0
+	LIGHTREC_CODE_INV := 1
+	ifeq ($(DYNAREC),lightrec)
+		OBJS += libpcsxcore/lightrec/ps3.o libpcsxcore/lightrec/ps3_init.o libpcsxcore/lightrec/ps3_code.o
+
+	endif
 
 # PSP
 else ifeq ($(platform), psp1)
@@ -699,6 +704,9 @@ $(info MAIN_LDLIBS: $(MAIN_LDLIBS))
 $(info )
 
 include Makefile
+
+libpcsxcore/lightrec/ps3_code.o: libpcsxcore/lightrec/ps3_code.S
+	$(CC) -c $< -o $@
 
 # no special AS needed for gpu_neon
 plugins/gpu_neon/psx_gpu/psx_gpu_arm_neon.o: plugins/gpu_neon/psx_gpu/psx_gpu_arm_neon.S
