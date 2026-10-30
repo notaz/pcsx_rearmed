@@ -489,18 +489,27 @@ const unsigned char cmd_lengths[256] =
 	0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
 };
 
+static inline uint16_t gpu_pixel_mask(uint16_t pixel)
+{
+#if __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
+  return -(uint16_t)!!(pixel & HTOLE16(0x8000));
+#else
+  return (int16_t)pixel >> 15;
+#endif
+}
+
 // this isn't very useful so should be rare
 void cpy_mask(uint16_t *dst, const uint16_t *src, int l, uint32_t r6)
 {
   int i;
   if (r6 == 1) {
     for (i = 0; i < l; i++)
-      dst[i] = src[i] | 0x8000;
+      dst[i] = src[i] | HTOLE16(0x8000);
   }
   else {
-    uint16_t msb = r6 << 15;
+    uint16_t msb = HTOLE16(r6 << 15);
     for (i = 0; i < l; i++) {
-      uint16_t mask = (int16_t)dst[i] >> 15;
+      uint16_t mask = gpu_pixel_mask(dst[i]);
       dst[i] = (dst[i] & mask) | ((src[i] | msb) & ~mask);
     }
   }
@@ -652,7 +661,7 @@ int do_vram_copy(uint16_t *vram, const uint32_t *ex_regs, const uint32_t *params
   const uint32_t dy = (LE32TOH(params[2]) >> 16) & 0x1FF;
   uint32_t w =  ((LE32TOH(params[3]) - 1) & 0x3FF) + 1;
   uint32_t h = (((LE32TOH(params[3]) >> 16) - 1) & 0x1FF) + 1;
-  uint16_t msb = ex_regs[6] << 15;
+  uint16_t msb = HTOLE16(ex_regs[6] << 15);
   uint16_t lbuf[128];
   uint32_t x, y;
 
