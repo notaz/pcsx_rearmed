@@ -9,7 +9,7 @@
 	url = https://github.com/rtissera/libchdr.git
 [submodule "deps/lightrec"]
 	path = deps/lightrec
-	url = https://github.com/pcercuei/lightrec.git
+	url = https://github.com/jhonathanc/lightrec.git
 [submodule "deps/lightning"]
 	path = deps/lightning
 	url = https://github.com/jhonathanc/gnu_lightning.git
