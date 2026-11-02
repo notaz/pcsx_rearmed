@@ -8,3 +8,5 @@ tests/native_blend_test.exe
 
 tests/journal_test
 tests/journal_test.exe
+tests/maintenance_test
+tests/maintenance_test.exe

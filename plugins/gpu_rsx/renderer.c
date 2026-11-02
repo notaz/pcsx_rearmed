@@ -11,6 +11,10 @@ uint64_t gpu_rsx_diagnostics[16];
 #define VRAM_BYTES (1024 * 512 * 2)
 #define JOURNAL_BYTES (8 * 1024 * 1024)
 #define JOURNAL_RECORDS 16384
+#define JOURNAL_RETAIN 256
+#define JOURNAL_SLICE 64
+#define JOURNAL_FRAME_US 12000
+#define JOURNAL_WORK_US 6000
 static struct {
   retro_environment_t environ;
   uint16_t *base, *scratch, *upload;
@@ -20,13 +24,42 @@ static struct {
   uint32_t *regs, *end;
   int initialized, active, replaying, requested;
   uint32_t needed[RSX_JOURNAL_WORDS];
+  retro_perf_get_time_usec_t get_time_usec;
+  retro_time_t frame_start;
+  unsigned serial,prune_after;
+  unsigned frame_counter;
+  unsigned first,data_head,data_tail;
 } renderer;
 static void hardware_primitive(unsigned char *);
+static struct rsx_journal_record *journal_record(unsigned i) {
+  return &renderer.records[(renderer.first+i)%JOURNAL_RECORDS];
+}
+static void update_journal_head(void) {
+  if(renderer.count) {
+    unsigned head=journal_record(0)->offset;
+    renderer.used-=(head+JOURNAL_BYTES-renderer.data_head)%JOURNAL_BYTES;
+    renderer.data_head=head;
+  } else renderer.used=renderer.first=renderer.data_head=renderer.data_tail=0;
+}
 int gpu_rsx_active(void) { return renderer.active; }
 void gpu_rsx_suspend_output(void) { rsx_hw_suspend_output(); }
 int gpu_rsx_is_replaying(void) { return renderer.replaying; }
 static void select_records(struct rsx_rect wanted) {
-  rsx_journal_select(renderer.records,renderer.count,renderer.data,wanted,renderer.needed);
+  rsx_journal_select_ring(renderer.records,renderer.count,renderer.data,wanted,renderer.needed,renderer.first,JOURNAL_RECORDS);
+}
+static void replay_record(struct rsx_journal_record *r,uint16_t *vram) {
+  const unsigned char *p=renderer.data+r->offset;
+  if(r->type==0) {
+    uint32_t regs[8]; int cycles=0,last=0,cmd;
+    memcpy(regs,r->regs,sizeof(regs));
+    peops_renderer_sync_ecmds(regs);
+    peops_renderer_do_cmd_list((uint32_t *)p,r->bytes/4,regs,&cycles,&last,&cmd);
+  } else if(r->type==1) {
+    int x,y;
+    const uint16_t *src=(const uint16_t *)p;
+    for(y=0;y<r->rect.h;y++) for(x=0;x<r->rect.w;x++)
+      vram[((r->rect.y+y)&511)*1024+((r->rect.x+x)&1023)]=*src++;
+  } else do_vram_copy(vram,r->regs,(const uint32_t *)p);
 }
 static void replay(struct rsx_rect wanted) {
   RSX_COUNT(0,1);
@@ -38,20 +71,9 @@ static void replay(struct rsx_rect wanted) {
   renderer.replaying=1;
   rsx_peops_handlers(NULL); rsx_peops_vram(renderer.scratch);
   for(i=0;i<renderer.count;i++) {
-    struct rsx_journal_record *r=&renderer.records[i];
-    const unsigned char *p=renderer.data+r->offset;
+    struct rsx_journal_record *r=journal_record(i);
     if(!r->keep) continue;
-    if(r->type==0) {
-      uint32_t regs[8]; int cycles=0,last=0,cmd;
-      memcpy(regs,r->regs,sizeof(regs));
-      peops_renderer_sync_ecmds(regs);
-      peops_renderer_do_cmd_list((uint32_t *)p,r->bytes/4,regs,&cycles,&last,&cmd);
-    } else if(r->type==1) {
-      int x,y;
-      const uint16_t *src=(const uint16_t *)p;
-      for(y=0;y<r->rect.h;y++) for(x=0;x<r->rect.w;x++)
-        renderer.scratch[((r->rect.y+y)&511)*1024+((r->rect.x+x)&1023)]=*src++;
-    } else do_vram_copy(renderer.scratch,r->regs,(const uint32_t *)p);
+    replay_record(r,renderer.scratch);
   }
   rsx_peops_vram(gpu.vram); peops_renderer_sync_ecmds(saved_regs);
   renderer.replaying=0;
@@ -65,28 +87,93 @@ static void checkpoint(void) {
   memcpy(gpu.vram,renderer.scratch,VRAM_BYTES);
   memcpy(renderer.base,renderer.scratch,VRAM_BYTES);
   renderer.count=renderer.used=0;
+  renderer.first=renderer.data_head=renderer.data_tail=0;
 }
 static void compact(void) {
-  RSX_COUNT(2,1);
   struct rsx_rect all={0,0,1024,512};
-  unsigned i,n=0,used=0;
+  unsigned i,n=0;
+  /* Do not repeatedly rescan a journal that cannot shrink. */
+  if((int32_t)(renderer.serial-renderer.prune_after)<0) return;
+  renderer.prune_after=renderer.serial+(renderer.count/2>1024?renderer.count/2:1024);
+  RSX_COUNT(2,1);
+  /* Without overwrites, every nonempty record remains live. */
+  for(i=0;i<renderer.count;i++)
+    if(journal_record(i)->replace || journal_record(i)->rect.w<=0 || journal_record(i)->rect.h<=0) break;
+  if(i==renderer.count) return;
   select_records(all);
   for(i=0;i<renderer.count;i++) {
-    struct rsx_journal_record r=renderer.records[i];
+    struct rsx_journal_record r=*journal_record(i);
     if(!r.keep) continue;
-    memmove(renderer.data+used,renderer.data+r.offset,r.bytes);
-    r.offset=used; used=(used+r.bytes+3)&~3u; renderer.records[n++]=r;
+    *journal_record(n++)=r;
   }
-  renderer.used=used; renderer.count=n;
+  renderer.count=n; update_journal_head();
+}
+static void advance_base(unsigned limit,retro_time_t deadline) {
+  uint32_t saved_regs[8];
+  unsigned n=0;
+  if(limit>renderer.count) limit=renderer.count;
+  if(!limit) return;
+  memcpy(saved_regs,renderer.regs?renderer.regs:gpu.ex_regs,sizeof(saved_regs));
+  renderer.replaying=1;
+  rsx_peops_handlers(NULL); rsx_peops_vram(renderer.base);
+  while(n<limit) {
+    if(deadline && renderer.get_time_usec()>=deadline) break;
+    replay_record(journal_record(n++),renderer.base);
+  }
+  rsx_peops_vram(gpu.vram); peops_renderer_sync_ecmds(saved_regs);
+  renderer.replaying=0;
+  if(renderer.active) rsx_peops_handlers(hardware_primitive);
+  if(!n) return;
+  RSX_COUNT(13,1); RSX_COUNT(14,n);
+  renderer.first=(renderer.first+n)%JOURNAL_RECORDS;
+  renderer.count-=n; update_journal_head();
+}
+static void maintain_journal(void) {
+  retro_time_t now,deadline,frame_end;
+  unsigned fields=gpu.state.frame_count?*gpu.state.frame_count-renderer.frame_counter:1;
+  if(!fields) fields=1;
+  if(fields>4) fields=4;
+  frame_end=renderer.frame_start+JOURNAL_FRAME_US*fields;
+  if(renderer.count<JOURNAL_RETAIN*4) return;
+  if(renderer.get_time_usec && renderer.get_time_usec()>=frame_end) return;
+  compact();
+  if(renderer.count<=JOURNAL_RETAIN) return;
+  if(!renderer.get_time_usec) { advance_base(JOURNAL_SLICE,0); return; }
+  now=renderer.get_time_usec();
+  deadline=now+JOURNAL_WORK_US*fields;
+  if(deadline>frame_end) deadline=frame_end;
+  advance_base(renderer.count-JOURNAL_RETAIN,deadline);
 }
 static struct rsx_journal_record *record(unsigned bytes) {
   struct rsx_journal_record *r;
-  if(renderer.count==JOURNAL_RECORDS || renderer.used+bytes>JOURNAL_BYTES) compact();
-  if(renderer.count==JOURNAL_RECORDS || renderer.used+bytes>JOURNAL_BYTES) checkpoint();
+  unsigned n,size,space,free_bytes;
   if(bytes>JOURNAL_BYTES) return NULL;
-  r=&renderer.records[renderer.count++]; memset(r,0,sizeof(*r));
+  size=(bytes+3)&~3u;
+  if(!size) size=4;
+  space=size+(renderer.data_tail+size>JOURNAL_BYTES?JOURNAL_BYTES-renderer.data_tail:0);
+  if(renderer.count==JOURNAL_RECORDS || space>JOURNAL_BYTES-renderer.used) compact();
+  space=size+(renderer.data_tail+size>JOURNAL_BYTES?JOURNAL_BYTES-renderer.data_tail:0);
+  if(renderer.count==JOURNAL_RECORDS || space>JOURNAL_BYTES-renderer.used) {
+    n=renderer.count<JOURNAL_SLICE?renderer.count:JOURNAL_SLICE;
+    while(n<renderer.count) {
+      free_bytes=JOURNAL_BYTES-renderer.used+(journal_record(n)->offset+JOURNAL_BYTES-renderer.data_head)%JOURNAL_BYTES;
+      if(space<=free_bytes) break;
+      n++;
+    }
+    RSX_COUNT(15,1);
+    advance_base(n,0);
+  }
+  if(renderer.data_tail+size>JOURNAL_BYTES) {
+    renderer.used+=JOURNAL_BYTES-renderer.data_tail;
+    renderer.data_tail=0;
+  }
+  renderer.serial++;
+  r=journal_record(renderer.count++); memset(r,0,sizeof(*r));
   memcpy(r->regs,renderer.regs?renderer.regs:gpu.ex_regs,sizeof(r->regs));
-  r->offset=renderer.used; r->bytes=bytes; renderer.used=(renderer.used+bytes+3)&~3u;
+  r->offset=renderer.data_tail; r->bytes=bytes;
+  if(renderer.count==1) renderer.data_head=r->offset;
+  renderer.data_tail=(renderer.data_tail+size)%JOURNAL_BYTES;
+  renderer.used+=size;
   return r;
 }
 static void disable(void) {
@@ -238,11 +325,17 @@ static void context_destroy(void) {
   free(renderer.base); free(renderer.scratch); free(renderer.upload); free(renderer.data); free(renderer.records);
   renderer.base=renderer.scratch=renderer.upload=NULL; renderer.data=NULL; renderer.records=NULL;
   renderer.count=renderer.used=0;
+  renderer.serial=renderer.prune_after=0;
+  renderer.first=renderer.data_head=renderer.data_tail=0;
 }
 void gpu_rsx_negotiate(retro_environment_t environ,int enabled) {
   struct retro_hw_render_callback cb;
+  struct retro_perf_callback perf;
   context_destroy(); renderer.environ=environ; renderer.requested=0;
+  renderer.get_time_usec=NULL; renderer.frame_start=0;
   if(!enabled) return;
+  memset(&perf,0,sizeof(perf));
+  if(environ(RETRO_ENVIRONMENT_GET_PERF_INTERFACE,&perf)) renderer.get_time_usec=perf.get_time_usec;
   memset(&cb,0,sizeof(cb)); cb.context_type=RETRO_HW_CONTEXT_RSX; cb.version_major=RETRO_HW_RENDER_INTERFACE_RSX_VERSION;
   cb.context_reset=context_reset; cb.context_destroy=context_destroy;
   renderer.requested=environ(RETRO_ENVIRONMENT_SET_HW_RENDER,&cb);
@@ -252,8 +345,15 @@ int gpu_rsx_output(const void *vram,int ofs,int bgr24,int x,int y,int w,int h,in
   if(rsx_hw_output(vram==NULL,ofs,bgr24,x,y,w,h,outw,outh)) return 1;
   fallback(); return 0;
 }
+void gpu_rsx_begin_frame(void) {
+  if(renderer.active && gpu.state.frame_count) renderer.frame_counter=*gpu.state.frame_count;
+  if(renderer.active && renderer.get_time_usec) renderer.frame_start=renderer.get_time_usec();
+}
 int gpu_rsx_present(retro_video_refresh_t cb) {
-  return renderer.active && rsx_hw_present(cb);
+  if(!renderer.active) return 0;
+  rsx_hw_flush();
+  maintain_journal();
+  return rsx_hw_present(cb);
 }
 int renderer_init(void) {
   renderer.initialized=1;
@@ -274,6 +374,8 @@ void renderer_update_caches(int x,int y,int w,int h,int state_changed) {
   if(state_changed && renderer.active) {
     RSX_COUNT(6,1);
     renderer.count=renderer.used=0; memcpy(renderer.base,gpu.vram,VRAM_BYTES);
+    renderer.first=renderer.data_head=renderer.data_tail=0;
+    renderer.prune_after=renderer.serial;
     if(!rsx_hw_upload(0,0,1024,512,gpu.vram)) fallback();
   } else gpu_rsx_shadow_changed(x,y,w,h);
   peops_renderer_update_caches(x,y,w,h,state_changed);

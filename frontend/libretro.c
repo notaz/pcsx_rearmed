@@ -3588,6 +3588,9 @@ void retro_run(void)
       update_variables(true);
 
    psxRegs.stop = 0;
+#ifdef GPU_RSX
+   gpu_rsx_begin_frame();
+#endif
    psxCpu->Execute(&psxRegs);
 
    if (pl_rearmed_cbs.fskip_dirty) {

@@ -147,9 +147,10 @@ static void render(uint16_t *vram,const struct rsx_journal_record *r,const struc
 }
 static void equivalence(void) {
   struct rsx_journal_record *records=calloc(RECORDS,sizeof(*records));struct operation *ops=calloc(RECORDS,sizeof(*ops));
+  struct rsx_journal_record *ring=calloc(RECORDS,sizeof(*ring));
   uint32_t *data=calloc(RECORDS*4,sizeof(*data)),*bits=calloc(RSX_JOURNAL_WORDS,sizeof(*bits));
   uint16_t *base=malloc(PIXELS*2),*full=malloc(PIXELS*2),*pruned=malloc(PIXELS*2);unsigned char *exact=malloc(RECORDS);unsigned pass,i;
-  CHECK(records && ops && data && bits && base && full && pruned && exact);
+  CHECK(records && ring && ops && data && bits && base && full && pruned && exact);
   for(pass=0;pass<8;pass++) {
     for(i=0;i<PIXELS;i++)base[i]=(uint16_t)random_word();
     memset(records,0,RECORDS*sizeof(*records));
@@ -166,13 +167,16 @@ static void equivalence(void) {
       if(!(i%23)) {r->type=1;r->mode=0;r->replace=1;r->rect=(struct rsx_rect){(int)(random_word()%1024),(int)(random_word()%512),16,8};}
     }
     selected(records,RECORDS,data,bits);pixel_select(records,RECORDS,data,(struct rsx_rect){0,0,1024,512},exact);
+    for(i=0;i<RECORDS;i++)ring[(i+137)%RECORDS]=records[i];
+    rsx_journal_select_ring(ring,RECORDS,(const unsigned char *)data,(struct rsx_rect){0,0,1024,512},bits,137,RECORDS);
+    for(i=0;i<RECORDS;i++)CHECK(ring[(i+137)%RECORDS].keep==records[i].keep);
     memcpy(full,base,PIXELS*2);memcpy(pruned,base,PIXELS*2);
     for(i=0;i<RECORDS;i++) {
       CHECK(!exact[i] || records[i].keep);render(full,&records[i],&ops[i],data);if(records[i].keep)render(pruned,&records[i],&ops[i],data);
     }
     CHECK(!memcmp(full,pruned,PIXELS*2));
   }
-  free(exact);free(pruned);free(full);free(base);free(bits);free(data);free(ops);free(records);
+  free(exact);free(pruned);free(full);free(base);free(bits);free(data);free(ops);free(ring);free(records);
   puts("4096 mixed RGB5/STP/mask/upload/copy operations match full replay and pixel dependency oracle");
 }
 static unsigned char *load_file(const char *path,size_t *size) {

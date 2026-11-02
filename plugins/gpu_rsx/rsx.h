@@ -31,6 +31,7 @@ void gpu_rsx_suspend_output(void);
 void rsx_hw_suspend_output(void);
 int gpu_rsx_output(const void *, int, int, int, int, int, int, int, int);
 int gpu_rsx_present(retro_video_refresh_t);
+void gpu_rsx_begin_frame(void);
 void gpu_rsx_prepare_vram(int, int, int, int);
 int gpu_rsx_copy_vram(const uint32_t *, const uint32_t *);
 void gpu_rsx_shadow_changed(int, int, int, int);

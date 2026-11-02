@@ -60,13 +60,13 @@ static int rsx_journal_intersects(const uint32_t bits[RSX_JOURNAL_WORDS],struct 
   }
   return 0;
 }
-static void rsx_journal_select(struct rsx_journal_record *records,unsigned count,const unsigned char *data,
-                               struct rsx_rect wanted,uint32_t needed[RSX_JOURNAL_WORDS]) {
+static void rsx_journal_select_ring(struct rsx_journal_record *records,unsigned count,const unsigned char *data,
+                               struct rsx_rect wanted,uint32_t needed[RSX_JOURNAL_WORDS],unsigned first,unsigned capacity) {
   unsigned i=count;
   memset(needed,0,RSX_JOURNAL_WORDS*sizeof(*needed));
   rsx_journal_tiles(needed,wanted,0);
   while(i--) {
-    struct rsx_journal_record *r=&records[i];
+    struct rsx_journal_record *r=&records[(first+i)%capacity];
     r->keep=rsx_journal_intersects(needed,r->rect);
     if(!r->keep) continue;
     if(r->replace) rsx_journal_tiles(needed,r->rect,1);
@@ -81,5 +81,9 @@ static void rsx_journal_select(struct rsx_journal_record *records,unsigned count
       rsx_journal_tiles(needed,src,0);
     }
   }
+}
+static inline void rsx_journal_select(struct rsx_journal_record *records,unsigned count,const unsigned char *data,
+                               struct rsx_rect wanted,uint32_t needed[RSX_JOURNAL_WORDS]) {
+  rsx_journal_select_ring(records,count,data,wanted,needed,0,count);
 }
 #endif
