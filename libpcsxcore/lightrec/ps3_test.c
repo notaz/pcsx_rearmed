@@ -43,8 +43,13 @@ static int callback9(int a, int b, int c, int d, int e,
 }
 
 #if defined(PS3_LIGHTREC_CORE) || defined(LIGHTREC_SMOKE_TEST)
-static void test_cop2(struct lightrec_state *state, uint32_t op)
+static void test_cop2(struct lightrec_registers_cp2 *regs, uint32_t op)
 {
+}
+
+static lightrec_gte_handler_t test_cop2_handler(uint32_t op, _Bool flagless)
+{
+   return test_cop2;
 }
 
 static void test_enable_ram(struct lightrec_state *state, _Bool enable)
@@ -84,7 +89,7 @@ static int run_lightrec_test(FILE *log)
 
    memset(maps, 0, sizeof(maps));
    memset(&ops, 0, sizeof(ops));
-   ops.cop2_op = test_cop2;
+   ops.cop2_hdl = test_cop2_handler;
    ops.enable_ram = test_enable_ram;
    maps[PSX_MAP_KERNEL_USER_RAM].address = ram;
    maps[PSX_MAP_KERNEL_USER_RAM].length = 0x200000;
