@@ -24,10 +24,14 @@ TESTS += psl1ght-log-path-test$(EXE_EXT)
 TESTS += startup-psl1ght-selftest-test$(EXE_EXT)
 TESTS += startup-platform-selftest-test$(EXE_EXT)
 TESTS += memory-psl1ght-test$(EXE_EXT)
+TESTS += state-allocation-test$(EXE_EXT)
 MEMORY_DEPS = memory_test.c ../../libpcsxcore/lightrec/ps3.c ../../libpcsxcore/lightrec/ps3.h
 MEMORY_DEPS += $(wildcard memory_include/sys/*.h) memory_include/ppu-lv2.h
 
 all: $(TESTS)
+
+state-allocation-test$(EXE_EXT): state_allocation_test.c ../../deps/lightrec/lightrec.c $(wildcard ../../deps/lightrec/*.h) $(filter-out lightrec-lightrec.o,$(OBJS))
+	$(CC) $(CFLAGS) -ffunction-sections -fdata-sections $< $(filter-out lightrec-lightrec.o,$(OBJS)) -Wl,--gc-sections $(LDLIBS) -o $@
 
 memory-psl1ght-test$(EXE_EXT): $(MEMORY_DEPS)
 	$(CC) $(CFLAGS) -Imemory_include -D__PSL1GHT__ $< -o $@
@@ -66,6 +70,7 @@ mman.o: ../../deps/mman/mman.c
 	$(CC) $(CFLAGS) -c $< -o $@
 
 run: all
+	./state-allocation-test$(EXE_EXT)
 	./memory-psl1ght-test$(EXE_EXT)
 	./psl1ght-log-path-test$(EXE_EXT)
 	./startup-quiet-test$(EXE_EXT)
