@@ -283,6 +283,24 @@ frontend/menu.o frontend/plugin_lib.o: CFLAGS += -DBUILTIN_GPU_NEON
  plugins/gpu_neon/psx_gpu/psx_gpu_simd.o: CFLAGS += -DSIMD_BUILD
  endif
 endif
+ifeq "$(BUILTIN_GPU)" "rsx"
+ifneq "$(platform)" "psl1ght"
+$(error BUILTIN_GPU=rsx requires platform=psl1ght)
+endif
+CFLAGS += -DGPU_RSX -DGPU_PEOPS
+ifeq "$(PS3_RSX_DIAGNOSTICS)" "1"
+CFLAGS += -DRSX_DIAGNOSTICS
+endif
+OBJS += plugins/gpu_rsx/command.o plugins/gpu_rsx/peops.o plugins/gpu_rsx/renderer.o plugins/gpu_rsx/rsx.o
+plugins/gpu_rsx/peops.o: CFLAGS += -fno-strict-aliasing
+frontend/menu.o frontend/plugin_lib.o: CFLAGS += -DBUILTIN_GPU_PEOPS
+PYTHON ?= python3
+CGCOMP ?= $(PSL1GHT)/bin/cgcomp
+plugins/gpu_rsx/generated/shaders.inc: plugins/gpu_rsx/shaders.py
+	$(PYTHON) $< $(CGCOMP) $@
+plugins/gpu_rsx/rsx.o: plugins/gpu_rsx/generated/shaders.inc
+endif
+
 ifeq "$(BUILTIN_GPU)" "peops"
 CFLAGS += -DGPU_PEOPS
 # note: code is not safe for strict-aliasing? (Castlevania problems)

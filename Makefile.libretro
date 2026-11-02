@@ -54,6 +54,7 @@ else ifeq ($(platform), osx)
 	LDFLAGS  += $(TARGET_RULE)
    endif
 else ifeq ($(platform), psl1ght)
+	BUILTIN_GPU ?= rsx
   ifeq ($(strip $(PS3DEV)),)
   $(error "PS3DEV env var is not set")
   endif

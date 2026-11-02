@@ -13,6 +13,9 @@
 #include <string.h>
 
 #include "gpu.h"
+#ifdef GPU_RSX
+#include "../gpu_rsx/rsx.h"
+#endif
 #include "gpu_timing.h"
 #include "gpu_async.h"
 #include "../../libpcsxcore/gpu.h" // meh
@@ -591,6 +594,10 @@ static noinline void start_vram_transfer(struct psx_gpu *gpu, uint32_t pos_word,
   gpu->dma.offset = 0;
   gpu->dma.is_read = is_read;
   gpu->dma_start = gpu->dma;
+#ifdef GPU_RSX
+  if (is_read || (gpu->ex_regs[6] & 2))
+    gpu_rsx_prepare_vram(gpu->dma.x, gpu->dma.y, gpu->dma.w, gpu->dma.h);
+#endif
 
   // postponed until the actual transfer
   //sync_renderer(gpu);
@@ -665,9 +672,17 @@ int do_vram_copy(uint16_t *vram, const uint32_t *ex_regs, const uint32_t *params
   uint16_t lbuf[128];
   uint32_t x, y;
 
+#ifdef GPU_RSX
+  if (!gpu_rsx_is_replaying() && gpu_rsx_copy_vram(ex_regs, params))
+    return 4;
+#endif
   renderer_flush_queues();
 
-  if (unlikely((sx < dx && dx < sx + w) || sx + w > 1024 || dx + w > 1024 || msb))
+  if (unlikely((sx < dx && dx < sx + w) || sx + w > 1024 || dx + w > 1024 || msb
+#ifdef GPU_RSX
+      || (ex_regs[6] & 2)
+#endif
+      ))
   {
     for (y = 0; y < h; y++)
     {
@@ -681,7 +696,10 @@ int do_vram_copy(uint16_t *vram, const uint32_t *ex_regs, const uint32_t *params
         for (x1 = 0; x1 < w1; x1++)
           lbuf[x1] = src[(sx + x + x1) & 0x3ff];
         for (x1 = 0; x1 < w1; x1++)
-          dst[(dx + x + x1) & 0x3ff] = lbuf[x1] | msb;
+#ifdef GPU_RSX
+          if (!(ex_regs[6] & 2) || !(dst[(dx + x + x1) & 0x3ff] & HTOLE16(0x8000)))
+#endif
+            dst[(dx + x + x1) & 0x3ff] = lbuf[x1] | msb;
       }
     }
   }
@@ -1101,6 +1119,9 @@ long GPUfreeze(uint32_t type, GPUFreeze_t *freeze, uint16_t **vram_ptr)
       }
 
       sync_renderer(&gpu);
+#ifdef GPU_RSX
+      gpu_rsx_prepare_vram(0, 0, 1024, 512);
+#endif
       memcpy(freeze->ulControl, gpu.regs, sizeof(gpu.regs));
       memcpy(freeze->ulControl + 0xe0, gpu.ex_regs, sizeof(gpu.ex_regs));
       freeze->ulStatus = gpu.status;
@@ -1114,7 +1135,11 @@ long GPUfreeze(uint32_t type, GPUFreeze_t *freeze, uint16_t **vram_ptr)
       for (i = 8; i > 1; i--)
         GPUwriteStatus((i << 24) | freeze->ulControl[i]);
       renderer_sync_ecmds(gpu.ex_regs);
+#ifdef GPU_RSX
+      renderer_update_caches(0, 0, 1024, 512, 1);
+#else
       renderer_update_caches(0, 0, 1024, 512, 0);
+#endif
       gpu_async_sync_ecmds(&gpu);
       break;
   }

@@ -106,6 +106,22 @@ struct retro_core_option_v2_category option_cats_us[] = {
 };
 
 struct retro_core_option_v2_definition option_defs_us[] = {
+#ifdef GPU_RSX
+   {
+      "pcsx_rearmed_ps3_renderer",
+      "GPU Renderer (Restart)",
+      NULL,
+      "Select the experimental PS3 RSX hardware rasterizer or the P.E.Op.S. software renderer. RSX requires a frontend with the libretro RSX interface v2.",
+      NULL,
+      "video",
+      {
+         { "rsx", "RSX (Experimental)" },
+         { "software", "Software" },
+         { NULL, NULL },
+      },
+      "rsx",
+   },
+#endif
    {
       "pcsx_rearmed_region",
       "Region",
