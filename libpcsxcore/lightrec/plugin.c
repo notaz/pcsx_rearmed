@@ -32,6 +32,9 @@
 
 #ifdef __PS3__
 #include "ps3.h"
+#if PS3_LIGHTREC_LOG && defined(PS3_LIGHTREC_DIAGNOSTICS)
+extern void lightrec_ps3_log_execution(u32, int);
+#endif
 #endif
 
 #if (defined(__arm__) || defined(__aarch64__)) && !defined(ALLOW_LIGHTREC_ON_ARM)
@@ -596,8 +599,14 @@ static void lightrec_plugin_execute_internal(bool block_only)
 							      psxRegs.pc,
 							      cycles_lightrec);
 		} else {
+#if defined(__PS3__) && PS3_LIGHTREC_LOG && defined(PS3_LIGHTREC_DIAGNOSTICS)
+			lightrec_ps3_log_execution(psxRegs.pc, 0);
+#endif
 			psxRegs.pc = lightrec_execute(lightrec_state,
 						      psxRegs.pc, cycles_lightrec);
+#if defined(__PS3__) && PS3_LIGHTREC_LOG && defined(PS3_LIGHTREC_DIAGNOSTICS)
+			lightrec_ps3_log_execution(psxRegs.pc, 1);
+#endif
 		}
 
 		lightrec_transition_to_pcsx(lightrec_state);

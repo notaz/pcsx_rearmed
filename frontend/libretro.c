@@ -50,6 +50,9 @@
 #include "revision.h"
 
 #include <libretro.h>
+#if defined(__PSL1GHT__) && defined(LIGHTREC)
+#include "../libpcsxcore/lightrec/ps3.h"
+#endif
 #include "libretro_core_options.h"
 
 #ifdef USE_LIBRETRO_VFS
@@ -2199,6 +2202,10 @@ bool retro_load_game(const struct retro_game_info *info)
       environ_cb(RETRO_ENVIRONMENT_SET_SAVE_STATE_DISABLE_UNDO, &true_);
    }
 #endif
+#if defined(__PSL1GHT__) && defined(LIGHTREC) && PS3_LIGHTREC_LOG
+   lightrec_ps3_executable_path = NULL;
+   environ_cb(RETRO_ENVIRONMENT_GET_LIBRETRO_PATH, &lightrec_ps3_executable_path);
+#endif
    log_mem_usage(0);
 
    if (check_unsatisfied_libcrypt()) {
@@ -3914,6 +3921,10 @@ void retro_init(void)
    struct retro_rumble_interface rumble;
    int ret;
 
+#if defined(__PSL1GHT__) && defined(LIGHTREC) && PS3_LIGHTREC_LOG
+   lightrec_ps3_executable_path = NULL;
+   environ_cb(RETRO_ENVIRONMENT_GET_LIBRETRO_PATH, &lightrec_ps3_executable_path);
+#endif
    log_mem_usage(0);
 
    msg_interface_version = 0;

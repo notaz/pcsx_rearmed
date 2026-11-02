@@ -105,3 +105,35 @@ void lightrec_code_inv(void *ptr, uint32_t len)
 		__asm__ volatile("icbi 0,%0" : : "r"(addr) : "memory");
 	__asm__ volatile("sync; isync" : : : "memory");
 }
+
+#if PS3_LIGHTREC_LOG && defined(PS3_LIGHTREC_DIAGNOSTICS)
+static unsigned int compiled_blocks;
+static unsigned int execution_calls;
+
+static void lightrec_ps3_log(const char *event, unsigned int count,
+		uint32_t pc, unsigned int size)
+{
+	FILE *log = lightrec_ps3_open_log("ps3-lightrec-selftest.log", "a");
+	if (!log)
+		return;
+	fprintf(log, "%s count=%u pc=%08x size=%u\n", event, count,
+		(unsigned int)pc, size);
+	fclose(log);
+}
+
+void lightrec_ps3_log_block(uint32_t pc, unsigned int size)
+{
+	compiled_blocks++;
+	if (compiled_blocks <= 16 || !(compiled_blocks & (compiled_blocks - 1)))
+		lightrec_ps3_log("compiled", compiled_blocks, pc, size);
+}
+
+void lightrec_ps3_log_execution(uint32_t pc, int completed)
+{
+	if (!completed)
+		execution_calls++;
+	if (execution_calls <= 4 || !(execution_calls & (execution_calls - 1)))
+		lightrec_ps3_log(completed ? "executed" : "executing",
+			execution_calls, pc, compiled_blocks);
+}
+#endif
