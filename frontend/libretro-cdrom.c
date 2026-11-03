@@ -82,7 +82,11 @@ void *rcdrom_open(const char *name, u32 *total_lba, u32 *have_subchannel)
    else {
       int ret = cdrom_set_read_speed_x(g_cd_handle, 4);
       if (ret) SysPrintf("CD speed set failed\n");
-      const cdrom_toc_t *toc = retro_vfs_file_get_cdrom_toc();
+      const cdrom_toc_t *toc = retro_vfs_file_get_cdrom_toc(g_cd_handle);
+      if (!toc || !toc->num_tracks) {
+         retro_vfs_file_close_impl(g_cd_handle);
+         return NULL;
+      }
       const cdrom_track_t *last = &toc->track[toc->num_tracks - 1];
       unsigned int lba = MSF2SECT(last->min, last->sec, last->frame);
       *total_lba = lba + last->track_size;
@@ -102,7 +106,7 @@ void rcdrom_close(void *stream)
 
 int rcdrom_getTN(void *stream, u8 *tn)
 {
-   const cdrom_toc_t *toc = retro_vfs_file_get_cdrom_toc();
+   const cdrom_toc_t *toc = retro_vfs_file_get_cdrom_toc(stream);
    if (toc) {
      tn[0] = 1;
      tn[1] = toc->num_tracks;
@@ -113,7 +117,9 @@ int rcdrom_getTN(void *stream, u8 *tn)
 
 int rcdrom_getTD(void *stream, u32 total_lba, u8 track, u8 *rt)
 {
-   const cdrom_toc_t *toc = retro_vfs_file_get_cdrom_toc();
+   const cdrom_toc_t *toc = retro_vfs_file_get_cdrom_toc(stream);
+   if (!toc)
+      return -1;
    rt[0] = 0, rt[1] = 2, rt[2] = 0;
    if (track == 0) {
       lba2msf(total_lba + 150, &rt[0], &rt[1], &rt[2]);
@@ -129,7 +135,9 @@ int rcdrom_getTD(void *stream, u32 total_lba, u8 track, u8 *rt)
 
 int rcdrom_getStatus(void *stream, struct CdrStat *stat)
 {
-   const cdrom_toc_t *toc = retro_vfs_file_get_cdrom_toc();
+   const cdrom_toc_t *toc = retro_vfs_file_get_cdrom_toc(stream);
+   if (!toc || !toc->num_tracks)
+      return -1;
    stat->Type = toc->track[0].audio ? 2 : 1;
    return 0;
 }
