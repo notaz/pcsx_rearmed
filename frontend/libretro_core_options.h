@@ -111,7 +111,7 @@ struct retro_core_option_v2_definition option_defs_us[] = {
       "pcsx_rearmed_ps3_renderer",
       "GPU Renderer (Restart)",
       NULL,
-      "Select the experimental PS3 RSX hardware rasterizer or the P.E.Op.S. software renderer. RSX requires a frontend with the libretro RSX interface v2.",
+      "Select the experimental PS3 RSX hardware rasterizer or the P.E.Op.S. software renderer.",
       NULL,
       "video",
       {
