@@ -14,7 +14,7 @@
 #ifndef LIGHTREC_ALIGNED_FREE
 #define LIGHTREC_ALIGNED_FREE _aligned_free
 #endif
-#elif defined(__PSL1GHT__)
+#elif defined(__PSL1GHT__) || defined(__ANDROID__)
 #include <malloc.h>
 #ifndef LIGHTREC_ALIGNED_ALLOC
 #define LIGHTREC_ALIGNED_ALLOC memalign
