@@ -70,12 +70,6 @@ int lightrec_ps3_init_code(FILE *log)
 		return ret;
 	if (!page_table[0] || !page_table[1])
 		return -1;
-	if (page_table[0] != (uintptr_t)page_table[0])
-	{
-		free_code(sys_process_getpid());
-		memset(page_table, 0, sizeof(page_table));
-		return -1;
-	}
 	lightrec_ps3_code = (unsigned char *)(uintptr_t)page_table[0];
 	memset(lightrec_ps3_code, 0, 8388608);
 	return 0;
