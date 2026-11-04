@@ -6,6 +6,24 @@
 #ifndef __LIGHTREC_CONFIG_H__
 #define __LIGHTREC_CONFIG_H__
 
+#if defined(_WIN32)
+#include <malloc.h>
+#ifndef LIGHTREC_ALIGNED_ALLOC
+#define LIGHTREC_ALIGNED_ALLOC(alignment, size) _aligned_malloc(size, alignment)
+#endif
+#ifndef LIGHTREC_ALIGNED_FREE
+#define LIGHTREC_ALIGNED_FREE _aligned_free
+#endif
+#elif defined(__PSL1GHT__)
+#include <malloc.h>
+#ifndef LIGHTREC_ALIGNED_ALLOC
+#define LIGHTREC_ALIGNED_ALLOC memalign
+#endif
+#ifndef LIGHTREC_ALIGNED_FREE
+#define LIGHTREC_ALIGNED_FREE free
+#endif
+#endif
+
 #define ENABLE_THREADED_COMPILER LIGHTREC_ENABLE_THREADED_COMPILER
 #define ENABLE_FIRST_PASS 1
 #define ENABLE_DISASSEMBLER LIGHTREC_ENABLE_DISASSEMBLER

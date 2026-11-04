@@ -1,7 +1,11 @@
+#include <errno.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
+#ifdef _WIN32
+#include <malloc.h>
+#endif
 
 static long cache_size;
 static void *live_allocation;
@@ -9,6 +13,7 @@ static unsigned int allocation_calls;
 static unsigned int free_calls;
 static int allocation_failure;
 static int invalid_free;
+static int invalid_size;
 
 static long test_sysconf(int name)
 {
@@ -16,12 +21,21 @@ static long test_sysconf(int name)
    return cache_size;
 }
 
-static void *test_malloc(size_t size)
+static void *test_aligned_alloc(size_t alignment, size_t size)
 {
    allocation_calls++;
+   if (size % alignment)
+   {
+      invalid_size = 1;
+      return NULL;
+   }
    if (allocation_failure)
       return NULL;
-   live_allocation = malloc(size);
+#ifdef _WIN32
+   live_allocation = _aligned_malloc(size, alignment);
+#else
+   live_allocation = aligned_alloc(alignment, size);
+#endif
    return live_allocation;
 }
 
@@ -34,18 +48,22 @@ static void test_free(void *ptr)
    }
    free_calls++;
    live_allocation = NULL;
+#ifdef _WIN32
+   _aligned_free(ptr);
+#else
    free(ptr);
+#endif
 }
 
 #ifndef _SC_LEVEL1_DCACHE_SIZE
 #define _SC_LEVEL1_DCACHE_SIZE 1
 #endif
 #define sysconf test_sysconf
-#define malloc test_malloc
-#define free test_free
+#define LIGHTREC_ALIGNED_ALLOC test_aligned_alloc
+#define LIGHTREC_ALIGNED_FREE test_free
 #include "../../deps/lightrec/lightrec.c"
-#undef free
-#undef malloc
+#undef LIGHTREC_ALIGNED_FREE
+#undef LIGHTREC_ALIGNED_ALLOC
 #undef sysconf
 
 int main(void)
@@ -54,7 +72,7 @@ int main(void)
       long cache;
       size_t alignment;
    } cases[] = {
-      { -1, 32768 }, { 0, 32768 },
+      { -EINVAL, 32768 }, { -1, 32768 }, { 0, 32768 },
       { 1, sizeof(void *) }, { 2, sizeof(void *) },
       { 4, sizeof(void *) > 4 ? sizeof(void *) : 4 },
       { 8, sizeof(void *) > 8 ? sizeof(void *) : 8 },
@@ -72,7 +90,7 @@ int main(void)
       for (width = 0; width < 2; width++)
       {
          state = lightrec_alloc_state(width != 0);
-         if (!state || state->with_32bit_lut != (width != 0))
+         if (!state || invalid_size || state->with_32bit_lut != (width != 0))
             return 1;
          if (((uintptr_t)state - 0x400) % cases[i].alignment)
             return 2;
