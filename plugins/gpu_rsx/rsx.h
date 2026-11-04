@@ -2,7 +2,7 @@
 #ifndef PCSX_GPU_RSX_H
 #define PCSX_GPU_RSX_H
 #include <stdint.h>
-#include "libretro_rsx.h"
+#include <libretro_rsx.h>
 #ifdef RSX_DIAGNOSTICS
 extern uint64_t gpu_rsx_diagnostics[16];
 #define RSX_COUNT(i,n) (gpu_rsx_diagnostics[i]+=(n))

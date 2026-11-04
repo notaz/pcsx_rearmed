@@ -3,18 +3,19 @@ TARGET ?= batch_test
 NATIVE_TARGET ?= native_blend_test
 JOURNAL_TARGET ?= journal_test
 MAINTENANCE_TARGET ?= maintenance_test
+RSX_INTERFACE = ../../../deps/libretro-common/include/libretro_rsx.h
 CFLAGS += -std=c99 -O2 -Wall -Wextra -I../../../include -I../../../deps/libretro-common/include
 ifneq ($(SANITIZER),)
 CFLAGS += -fsanitize=$(SANITIZER) -fno-omit-frame-pointer
 LDFLAGS += -fsanitize=$(SANITIZER)
 endif
-$(TARGET): batch_test.c ../batch.h ../rsx.h ../libretro_rsx.h
+$(TARGET): batch_test.c ../batch.h ../rsx.h $(RSX_INTERFACE)
 	$(CC) $(CFLAGS) batch_test.c $(LDFLAGS) -o $@
-$(NATIVE_TARGET): native_blend_test.c ../blend.h ../rsx.h ../libretro_rsx.h
+$(NATIVE_TARGET): native_blend_test.c ../blend.h ../rsx.h $(RSX_INTERFACE)
 	$(CC) $(CFLAGS) native_blend_test.c $(LDFLAGS) -o $@
-$(JOURNAL_TARGET): journal_test.c ../journal.h ../rsx.h ../libretro_rsx.h
+$(JOURNAL_TARGET): journal_test.c ../journal.h ../rsx.h $(RSX_INTERFACE)
 	$(CC) $(CFLAGS) journal_test.c $(LDFLAGS) -o $@
-$(MAINTENANCE_TARGET): maintenance_test.c ../renderer.c ../journal.h ../command.c ../peops.c ../rsx.h
+$(MAINTENANCE_TARGET): maintenance_test.c ../renderer.c ../journal.h ../command.c ../peops.c ../rsx.h $(RSX_INTERFACE)
 	$(CC) $(CFLAGS) -DGPU_RSX -ffunction-sections -fdata-sections maintenance_test.c ../command.c ../peops.c ../../gpulib/gpu.c $(LDFLAGS) -Wl,--gc-sections -lm -o $@
 check: $(TARGET) $(NATIVE_TARGET) $(JOURNAL_TARGET) $(MAINTENANCE_TARGET)
 	./$(TARGET)
