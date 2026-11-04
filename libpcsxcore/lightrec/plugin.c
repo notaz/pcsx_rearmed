@@ -2,9 +2,7 @@
 #include <stdbool.h>
 #include <stdio.h>
 #include <unistd.h>
-#ifndef __PS3__
 #include <signal.h>
-#endif
 #include <assert.h>
 
 #if P_HAVE_MMAP
