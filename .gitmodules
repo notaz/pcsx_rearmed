@@ -15,7 +15,7 @@
 	url = https://github.com/jhonathanc/gnu_lightning.git
 [submodule "deps/libretro-common"]
 	path = deps/libretro-common
-	url = https://github.com/jhonathanc/libretro-common.git
+	url = https://github.com/libretro/libretro-common.git
 [submodule "deps/mman"]
 	path = deps/mman
 	url = https://github.com/witwall/mman-win32
