@@ -125,12 +125,13 @@ struct retro_core_option_v2_definition option_defs_us[] = {
       "pcsx_rearmed_bios",
       "BIOS Selection",
       NULL,
-      "Specify which BIOS to use. 'Auto' will attempt to load a real bios file from the frontend 'system' directory, falling back to high level emulation if unavailable. 'HLE' forces high level BIOS emulation. It is recommended to use an official bios file for better compatibility.",
+      "Specify which BIOS to use. 'Auto' will attempt to load a real bios file from the frontend 'system' directory, falling back to high level emulation if unavailable. 'HLE' forces high level BIOS emulation. BIOS files found in the 'system' directory are also listed and can be selected directly, in which case the file is used regardless of the game's region. It is recommended to use an official bios file for better compatibility.",
       NULL,
       "system",
       {
          { "auto", "Auto" },
          { "HLE",  NULL },
+         /* BIOS files found at runtime are appended here, see libretro.c */
          { NULL, NULL },
       },
       "auto",

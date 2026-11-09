@@ -56,6 +56,12 @@
 #include <streams/file_stream_transforms.h>
 #include <file/file_path.h>
 #include <retro_dirent.h>
+#else
+#include <sys/types.h>
+#include <sys/stat.h>
+#ifndef VITA
+#include <dirent.h>
+#endif
 #endif
 
 #ifdef _3DS
@@ -1059,19 +1065,11 @@ static bool update_option_visibility(void)
    return updated;
 }
 
-void retro_set_environment(retro_environment_t cb)
+static bool bios_list_update(const char *dir);
+
+static void register_core_options(void)
 {
    bool option_categories = false;
-#ifdef USE_LIBRETRO_VFS
-   struct retro_vfs_interface_info vfs_iface_info;
-#endif
-
-   environ_cb = cb;
-
-   if (cb(RETRO_ENVIRONMENT_GET_LOG_INTERFACE, &logging))
-      log_cb = logging.log;
-
-   environ_cb(RETRO_ENVIRONMENT_SET_CONTROLLER_INFO, (void*)ports);
 
    /* Set core options
     * An annoyance: retro_set_environment() can be called
@@ -1120,6 +1118,21 @@ void retro_set_environment(retro_environment_t cb)
       environ_cb(RETRO_ENVIRONMENT_SET_CORE_OPTIONS_UPDATE_DISPLAY_CALLBACK,
             &update_display_cb);
    }
+}
+
+void retro_set_environment(retro_environment_t cb)
+{
+   const char *dir = NULL;
+#ifdef USE_LIBRETRO_VFS
+   struct retro_vfs_interface_info vfs_iface_info;
+#endif
+
+   environ_cb = cb;
+
+   if (cb(RETRO_ENVIRONMENT_GET_LOG_INTERFACE, &logging))
+      log_cb = logging.log;
+
+   environ_cb(RETRO_ENVIRONMENT_SET_CONTROLLER_INFO, (void*)ports);
 
 #ifdef USE_LIBRETRO_VFS
    vfs_iface_info.required_interface_version = 3; /* stat */
@@ -1131,6 +1144,15 @@ void retro_set_environment(retro_environment_t cb)
 	   dirent_vfs_init(&vfs_iface_info);
    }
 #endif
+
+   /* The BIOS file list must be known by the first options registration,
+    * else the frontend drops a saved file selection as an unknown value.
+    * Frontends may not provide the dir here (RetroArch's info probes
+    * don't), so a failure leaves the cached list alone. */
+   if (environ_cb(RETRO_ENVIRONMENT_GET_SYSTEM_DIRECTORY, &dir) && dir)
+      bios_list_update(dir);
+
+   register_core_options();
 }
 
 void retro_set_video_refresh(retro_video_refresh_t cb) { video_cb = cb; }
@@ -2204,15 +2226,6 @@ bool retro_load_game(const struct retro_game_info *info)
    if (check_unsatisfied_libcrypt()) {
       show_notification("LibCrypt protected game with missing SBI detected",
             3000, 3, RETRO_LOG_WARN);
-   }
-   if (Config.SlowBoot && show_info_notifications)
-   {
-      char buf[16+64];
-      if (Config.PsxRegion < ARRAY_SIZE(Config.Bios) && Config.Bios[Config.PsxRegion][0]) {
-         snprintf(buf, sizeof(buf), "Booting BIOS: %s", Config.Bios[Config.PsxRegion]);
-         show_message(buf, 1200, 2, RETRO_LOG_INFO, RETRO_MESSAGE_TARGET_OSD,
-               RETRO_MESSAGE_TYPE_PROGRESS);
-      }
    }
    show_enabled_hacks();
 
@@ -3499,8 +3512,14 @@ static void print_internal_fps(void)
    }
 }
 
-static bool get_bios_config_hle(void);
-static void prepare_bios(bool use_hle);
+enum bios_mode {
+   BIOS_MODE_AUTO,
+   BIOS_MODE_HLE,
+   BIOS_MODE_FILE,
+};
+
+static enum bios_mode get_bios_config(void);
+static void prepare_bios(enum bios_mode mode);
 
 void retro_run(void)
 {
@@ -3508,7 +3527,7 @@ void retro_run(void)
    if (reset_pending)
    {
       reset_pending = false;
-      prepare_bios(get_bios_config_hle());
+      prepare_bios(get_bios_config());
       SysReset();
       if (CheckResetManualExe())
          ;
@@ -3593,67 +3612,66 @@ void retro_run(void)
 }
 
 // see Config.Bios
-static char *bios_saved[PSX_REGION_COUNT];
+static char *bios_auto_by_region[PSX_REGION_COUNT];
 
-static bool have_all_bios(void)
+static bool have_all_bios_regions(void)
 {
    size_t i;
-   for (i = 0; i < ARRAY_SIZE(bios_saved); i++)
-      if (!bios_saved[i])
+   for (i = 0; i < ARRAY_SIZE(bios_auto_by_region); i++)
+      if (!bios_auto_by_region[i])
          return false;
    return true;
 }
 
-static void try_use_bios(char *path, size_t path_size, bool preferred_only, bool quiet)
+static int64_t bios_file_size(const char *path)
+{
+#ifdef USE_LIBRETRO_VFS
+   return path_get_size(path);
+#else
+   struct stat st;
+   if (stat(path, &st) != 0 || !S_ISREG(st.st_mode))
+      return -1;
+   return st.st_size;
+#endif
+}
+
+static void try_use_bios(char *path, size_t path_size)
 {
    const char *guessed_region_name = "US";
    u8 *data = NULL, guessed_region = PSX_REGION_US;
    const char *name;
-   long i, size;
+   int64_t size;
+   long i;
    FILE *fp;
    u32 crc;
 
    name = strrchr(path, SLASH);
    if (name++ == NULL)
       name = path;
-   for (i = 0; i < ARRAY_SIZE(bios_saved); i++)
-      if (bios_saved[i] && !strcmp(name, bios_saved[i]))
+   for (i = 0; i < ARRAY_SIZE(bios_auto_by_region); i++)
+      if (bios_auto_by_region[i] && !strcmp(name, bios_auto_by_region[i]))
          return;
+
+   if (strcasestr(name, "unirom"))
+      return;
+   size = bios_file_size(path);
+   if (size != 512 * 1024)
+      return;
 
    fp = fopen(path, "rb");
    if (fp == NULL) {
-      if (!quiet)
-         LogErr("fopen '%s' failed: %d\n", path, errno);
+      LogErr("fopen '%s' failed: %d\n", path, errno);
       return;
    }
 
-   if (strcasestr(name, "unirom"))
-      goto finish;
-
-   fseek(fp, 0, SEEK_END);
-   size = ftell(fp);
-   if (preferred_only && size != 512 * 1024)
-      goto finish;
-   if (size != 512 * 1024 && size != 4 * 1024 * 1024)
-      goto finish;
-
    data = malloc(512 * 1024);
    if (data == NULL)
-      goto finish;
-   if (fseek(fp, 0, SEEK_SET) != 0)
       goto finish;
    if (fread(data, 1, 512 * 1024, fp) != 512 * 1024) {
       LogErr("fread '%s' failed\n", path);
       goto finish;
    }
-   if (memcmp(data + 1, "\x00\x08\x3c\x3f", 4) &&
-       strncmp((char *)data + 0x12c, "PS compatible", strlen("PS compatible")))
-   {
-      if (!quiet)
-         SysPrintf("skipping '%s'\n", name);
-      goto finish;
-   }
-
+   // note: bios_probe() already checked the headers
    crc = crc32(0, data, 512 * 1024);
    if (!memcmp(data + 0x7ff51, " E", 2)) {
       guessed_region = PSX_REGION_EU;
@@ -3666,10 +3684,10 @@ static void try_use_bios(char *path, size_t path_size, bool preferred_only, bool
       guessed_region_name = "JP";
    }
 
-   if (bios_saved[guessed_region] == NULL) {
-      bios_saved[guessed_region] = strdup(name);
-      if (bios_saved[guessed_region])
-         SysPrintf("found %s BIOS file, crc32 %08x: %s\n", guessed_region_name, crc, path);
+   if (bios_auto_by_region[guessed_region] == NULL) {
+      bios_auto_by_region[guessed_region] = strdup(name);
+      if (bios_auto_by_region[guessed_region])
+         SysPrintf("auto %s BIOS file: crc32 %08x, %s\n", guessed_region_name, crc, path);
    }
 finish:
    free(data);
@@ -3677,62 +3695,260 @@ finish:
      fclose(fp);
 }
 
-#ifndef VITA
-#ifdef USE_LIBRETRO_VFS
-/**
- * Finds a given bios by using libretro-common's readdir().
+// recommended BIOS files, in order of preference
+static const char * const listed_bios[] = {
+   "scph5500", "scph5501", "scph5502",
+   "psxonpsp660", "scph101", "scph7001", "scph1001",
+};
+
+/*
+ * BIOS files found in the system dir, offered as pcsx_rearmed_bios values.
+ * Scanned once per core session (from retro_set_environment() if the
+ * frontend provides the dir there), and also used by the auto selection.
  */
-static void find_any_bios(const char *dirpath, char *path, size_t path_size)
+struct bios_list_entry {
+   char *name;
+   char *label;
+   int guessed_region;
+};
+static struct {
+   char *dir;
+   size_t count;
+   struct bios_list_entry e[RETRO_NUM_CORE_OPTION_VALUES_MAX];
+} bios_list;
+static char bios_selected[sizeof(Config.Bios[0])];
+
+static struct retro_core_option_value *bios_option_values(size_t *fixed_count)
 {
+   static struct retro_core_option_value *values;
+   static size_t fixed;
+   size_t i;
+
+   if (values == NULL) {
+      for (i = 0; option_defs_us[i].key; i++) {
+         if (!strcmp(option_defs_us[i].key, "pcsx_rearmed_bios")) {
+            values = option_defs_us[i].values;
+            break;
+         }
+      }
+      if (values == NULL)
+         return NULL;
+      // the static values ("auto", "HLE"), the list is appended after them
+      while (values[fixed].value)
+         fixed++;
+   }
+   *fixed_count = fixed;
+   return values;
+}
+
+static size_t bios_list_capacity(void)
+{
+   size_t fixed = 0;
+   if (!bios_option_values(&fixed))
+      return 0;
+   // keep a { NULL, NULL } terminator
+   return RETRO_NUM_CORE_OPTION_VALUES_MAX - 1 - fixed;
+}
+
+static void bios_list_publish(void)
+{
+   struct retro_core_option_value *values;
+   size_t i, fixed = 0;
+
+   values = bios_option_values(&fixed);
+   if (values == NULL)
+      return;
+   for (i = 0; i < bios_list.count; i++) {
+      values[fixed + i].value = bios_list.e[i].name;
+      values[fixed + i].label = bios_list.e[i].label;
+   }
+   values[fixed + i].value = NULL;
+   values[fixed + i].label = NULL;
+}
+
+static void bios_list_free(void)
+{
+   size_t i;
+   for (i = 0; i < bios_list.count; i++)
+      free(bios_list.e[i].name); // label shares the allocation
+   free(bios_list.dir);
+   memset(&bios_list, 0, sizeof(bios_list));
+   bios_list_publish();
+}
+
+/*
+ * Cheap check of a list candidate: unlike try_use_bios() it doesn't read
+ * the whole file, as the system dir may hold many files of other cores
+ * and storage can be slow. Returns the region name ("" if unknown),
+ * or NULL if this doesn't look like a BIOS.
+ */
+static const char *bios_probe(const char *path, int *guessed_region)
+{
+   unsigned char hdr[0x12c + 13], tag[2];
+   const char *guessed_region_name = NULL;
+   int64_t size;
+   FILE *fp;
+
+   *guessed_region = -1;
+   size = bios_file_size(path);
+   if (size != 512 * 1024 && size != 4 * 1024 * 1024)
+      return NULL;
+   fp = fopen(path, "rb");
+   if (fp == NULL)
+      return NULL;
+   if (fread(hdr, 1, sizeof(hdr), fp) == sizeof(hdr) &&
+       (!memcmp(hdr + 1, "\x00\x08\x3c\x3f", 4) ||
+        !memcmp(hdr + 0x12c, "PS compatible", 13)))
+   {
+      guessed_region_name = "";
+      // last char of the version string, like "4.1 12/16/97 A"
+      if (fseek(fp, 0x7ff51, SEEK_SET) == 0 && fread(tag, 1, 2, fp) == 2
+          && tag[0] == ' ')
+      {
+         switch (tag[1]) {
+            case 'A': guessed_region_name = "US"; *guessed_region = PSX_REGION_US; break;
+            case 'E': guessed_region_name = "EU"; *guessed_region = PSX_REGION_EU; break;
+            case 'J': guessed_region_name = "JP"; *guessed_region = PSX_REGION_JP; break;
+         }
+      }
+   }
+   fclose(fp);
+   return guessed_region_name;
+}
+
+static void bios_list_try_add(const char *dirpath, const char *name)
+{
+   char bios_list_path[PATH_MAX];
+   struct bios_list_entry *e;
+   int guessed_region_id = -1;
+   const char *region;
+   size_t len, size;
+   int r;
+
+   if (bios_list.count >= bios_list_capacity())
+      return;
+   len = strlen(name);
+   // these names can't be stored as option values or in Config.Bios
+   if (name[0] == '.' || len >= sizeof(Config.Bios[0]) || strpbrk(name, "|\"")
+       || !strcmp(name, "auto") || !strcmp(name, "HLE"))
+      return;
+   r = snprintf(bios_list_path, sizeof(bios_list_path), "%s%c%s",
+         dirpath, SLASH, name);
+   if (r < 0 || (size_t)r >= sizeof(bios_list_path))
+      return;
+   region = bios_probe(bios_list_path, &guessed_region_id);
+   if (region == NULL)
+      return;
+
+   e = &bios_list.e[bios_list.count];
+   size = len + 1 + len + sizeof(" (XX)");
+   e->name = malloc(size);
+   if (e->name == NULL)
+      return;
+   memcpy(e->name, name, len + 1);
+   e->label = e->name + len + 1;
+   if (region[0])
+      snprintf(e->label, size - len - 1, "%s (%s)", name, region);
+   else
+      memcpy(e->label, name, len + 1);
+   e->guessed_region = guessed_region_id;
+   bios_list.count++;
+}
+
+// position in listed_bios[], ARRAY_SIZE(listed_bios) if not listed
+static size_t bios_listed_rank(const char *name)
+{
+   size_t i, l;
+   for (i = 0; i < ARRAY_SIZE(listed_bios); i++) {
+      l = strlen(listed_bios[i]);
+      if (!strncasecmp(name, listed_bios[i], l) && !strcasecmp(name + l, ".bin"))
+         break;
+   }
+   return i;
+}
+
+// recommended files first (the menu and the 'auto' selection rely on it)
+static int bios_list_cmp(const void *p1, const void *p2)
+{
+   const struct bios_list_entry *e1 = p1, *e2 = p2;
+   size_t r1 = bios_listed_rank(e1->name);
+   size_t r2 = bios_listed_rank(e2->name);
+   if (r1 != r2)
+      return r1 < r2 ? -1 : 1;
+   return strcasecmp(e1->name, e2->name);
+}
+
+static void bios_list_scan(const char *dirpath)
+{
+#if defined(VITA)
+   // no directory scanning here, see if the common names are around
+   char name[32];
+   size_t i;
+
+   for (i = 0; i < ARRAY_SIZE(listed_bios); i++) {
+      snprintf(name, sizeof(name), "%s.bin", listed_bios[i]);
+      bios_list_try_add(dirpath, name);
+   }
+#elif defined(USE_LIBRETRO_VFS)
    struct RDIR *dir;
-   const char *name;
 
    dir = retro_opendir(dirpath);
    if (dir == NULL)
       return;
-
-   while (retro_readdir(dir))
+   while (bios_list.count < bios_list_capacity() && retro_readdir(dir))
    {
-      name = retro_dirent_get_name(dir);
-      if (name[0] == '.' && (name[1] == '.' || !name[1]))
+      if (retro_dirent_is_dir(dir, NULL))
          continue;
-      snprintf(path, path_size, "%s%c%s", dirpath, SLASH, name);
-      try_use_bios(path, path_size, true, false);
-      if (have_all_bios())
-         break;
+      bios_list_try_add(dirpath, retro_dirent_get_name(dir));
    }
-
    retro_closedir(dir);
-}
 #else
-#include <sys/types.h>
-#include <dirent.h>
-
-static void find_any_bios(const char *dirpath, char *path, size_t path_size)
-{
    struct dirent *ent;
    DIR *dir;
 
    dir = opendir(dirpath);
    if (dir == NULL)
       return;
-
-   while ((ent = readdir(dir)))
-   {
-      if (ent->d_name[0] == '.' && (ent->d_name[1] == '.' || !ent->d_name[1]))
-         continue;
-      snprintf(path, path_size, "%s%c%s", dirpath, SLASH, ent->d_name);
-      try_use_bios(path, path_size, true, false);
-      if (have_all_bios())
-         break;
-   }
-
+   while (bios_list.count < bios_list_capacity() && (ent = readdir(dir)))
+      bios_list_try_add(dirpath, ent->d_name);
    closedir(dir);
+#endif
+   qsort(bios_list.e, bios_list.count, sizeof(bios_list.e[0]), bios_list_cmp);
 }
-#endif
-#else
-#define find_any_bios(...)
-#endif
+
+/*
+ * Rescans if the dir differs from the one already scanned. Returns true
+ * if the option values may have changed and need to be registered again.
+ */
+static bool bios_list_update(const char *dir)
+{
+   size_t old_count = bios_list.count;
+   size_t i;
+
+   if (bios_list.dir && !strcmp(bios_list.dir, dir))
+      return false;
+
+   bios_list_free();
+   bios_list.dir = strdup(dir);
+   if (bios_list.dir == NULL)
+      return old_count != 0;
+   bios_list_scan(dir);
+   bios_list_publish();
+
+   SysPrintf("found %u BIOS file(s) in '%s'\n", (unsigned)bios_list.count, dir);
+   for (i = 0; i < bios_list.count; i++)
+      SysPrintf("  %s\n", bios_list.e[i].label);
+   return old_count != 0 || bios_list.count != 0;
+}
+
+static bool bios_list_has(const char *name)
+{
+   size_t i;
+   for (i = 0; i < bios_list.count; i++)
+      if (!strcmp(bios_list.e[i].name, name))
+         return true;
+   return false;
+}
 
 static void check_system_specs(void)
 {
@@ -3814,20 +4030,28 @@ static void load_memcards(void)
    }
 }
 
-static bool get_bios_config_hle(void)
+static enum bios_mode get_bios_config(void)
 {
    struct retro_variable var = { NULL, };
-   bool use_hle = false;
+   enum bios_mode mode = BIOS_MODE_AUTO;
 
    var.key = "pcsx_rearmed_bios";
    if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value)
    {
       if (!strcmp(var.value, "HLE"))
-         use_hle = true;
+         mode = BIOS_MODE_HLE;
+      else if (!strcmp(var.value, "auto"))
+         ;
+      else if (bios_list_has(var.value)) {
+         snprintf(bios_selected, sizeof(bios_selected), "%s", var.value);
+         mode = BIOS_MODE_FILE;
+      }
+      else
+         LogWarn("selected BIOS '%s' not found, using auto\n", var.value);
    }
 
    Config.SlowBoot = 0;
-   if (!use_hle)
+   if (mode != BIOS_MODE_HLE)
    {
       var.value = NULL;
       var.key = "pcsx_rearmed_show_bios_bootlogo";
@@ -3839,19 +4063,24 @@ static bool get_bios_config_hle(void)
             Config.SlowBoot = 2;
       }
    }
-   return use_hle;
+   return mode;
 }
 
-static void prepare_bios(bool use_hle)
+static void prepare_bios(enum bios_mode mode)
 {
-   size_t i, count = ARRAY_SIZE(bios_saved);
+   size_t i, count = ARRAY_SIZE(bios_auto_by_region);
+   const char *name;
    assert(count == ARRAY_SIZE(Config.Bios));
    for (i = 0; i < count; i++) {
       Config.Bios[i][0] = 0;
-      if (bios_saved[i] && !use_hle) {
-         int r = snprintf(Config.Bios[i], sizeof(Config.Bios[i]), "%s", bios_saved[i]);
+      if (mode == BIOS_MODE_HLE)
+         continue;
+      // a user selected file is used regardless of the region
+      name = mode == BIOS_MODE_FILE ? bios_selected : bios_auto_by_region[i];
+      if (name) {
+         int r = snprintf(Config.Bios[i], sizeof(Config.Bios[i]), "%s", name);
          if ((size_t)r >= sizeof(Config.Bios[i])) {
-            LogErr("BIOS '%s' name is too long, discarding\n", bios_saved[i]);
+            LogErr("BIOS '%s' name is too long, discarding\n", name);
             Config.Bios[i][0] = 0;
          }
       }
@@ -3864,40 +4093,43 @@ static void loadPSXBios(void)
    const char *dir;
    const char *msg_str = NULL;
    unsigned duration = 0;
-   const char * const listed_bios[] = {
-      "scph5500", "scph5501", "scph5502",
-      "psxonpsp660", "scph101", "scph7001", "scph1001",
-   };
-   bool use_hle = get_bios_config_hle();
+   enum bios_mode mode;
    enum retro_log_level level = RETRO_LOG_INFO;
 
    if (environ_cb(RETRO_ENVIRONMENT_GET_SYSTEM_DIRECTORY, &dir) && dir)
    {
-      unsigned i;
+      size_t i;
       snprintf(Config.BiosDir, sizeof(Config.BiosDir), "%s", dir);
 
-      for (i = 0; i < ARRAY_SIZE(listed_bios); i++)
-      {
-         snprintf(path, sizeof(path), "%s%c%s.bin", dir, SLASH, listed_bios[i]);
-         try_use_bios(path, sizeof(path), true, true);
-         if (have_all_bios())
-            break;
-      }
+      // the frontend didn't provide this dir in retro_set_environment()
+      if (bios_list_update(dir))
+         register_core_options();
 
-      if (i == ARRAY_SIZE(listed_bios))
-         find_any_bios(dir, path, sizeof(path));
+      // select bios files for the 'auto' mode (a suitable bios for each region),
+      // the list is sorted with the recommended files first
+      for (i = 0; i < bios_list.count && !have_all_bios_regions(); i++)
+      {
+         if ((uint32_t)bios_list.e[i].guessed_region < ARRAY_SIZE(bios_auto_by_region) &&
+             bios_auto_by_region[bios_list.e[i].guessed_region])
+            continue;
+         snprintf(path, sizeof(path), "%s%c%s", dir, SLASH, bios_list.e[i].name);
+         try_use_bios(path, sizeof(path));
+      }
    }
 
-   prepare_bios(use_hle);
+   mode = get_bios_config();
+   prepare_bios(mode);
 
-   if (use_hle)
+   if (mode == BIOS_MODE_HLE)
    {
       msg_str = "BIOS set to \'hle\'";
       SysPrintf("Using HLE BIOS.\n");
       // shorter as the user probably intentionally wants to use HLE
       duration = 700;
    }
-   else if (!bios_saved[0] && !bios_saved[1] && !bios_saved[2])
+   else if (mode == BIOS_MODE_FILE)
+      SysPrintf("Using selected BIOS file: %s\n", bios_selected);
+   else if (!bios_auto_by_region[0] && !bios_auto_by_region[1] && !bios_auto_by_region[2])
    {
       msg_str = "No PlayStation BIOS file found - add for better compatibility";
       SysPrintf("No BIOS files found.\n");
@@ -4036,10 +4268,11 @@ void retro_deinit(void)
 #ifdef GPU_UNAI
    show_advanced_gpu_unai_settings = true;
 #endif
-   for (i = 0; i < ARRAY_SIZE(bios_saved); i++) {
-      free(bios_saved[i]);
-      bios_saved[i] = NULL;
+   for (i = 0; i < ARRAY_SIZE(bios_auto_by_region); i++) {
+      free(bios_auto_by_region[i]);
+      bios_auto_by_region[i] = NULL;
    }
+   bios_list_free();
 
    /* Have to reset disks struct, otherwise
     * fnames/flabels will leak memory */
