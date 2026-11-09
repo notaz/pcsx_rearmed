@@ -33,6 +33,7 @@
 #include "lightrec/mem.h"
 #include "memmap.h"
 #include "compiler_features.h"
+#include "zlib_wrapper.h"
 
 #ifdef USE_LIBRETRO_VFS
 #include <streams/file_stream_transforms.h>
@@ -288,9 +289,9 @@ int psxMemInit(void)
 
 void psxMemReset() {
 	size_t count = sizeof(Config.Bios) / sizeof(Config.Bios[0]);
+	char bios[sizeof(Config.BiosDir) + sizeof(Config.Bios[0])];
 	size_t i, r = Config.PsxRegion, rret;
 	FILE *f = NULL;
-	char bios[1024];
 
 	// done by the BIOS [10000...sp) before loading the exe from cd
 	//memset(psxRegs.ptrs.psxM, 0, 0x00200000);
@@ -320,7 +321,8 @@ void psxMemReset() {
 		rret = fread(psxRegs.ptrs.psxR, 1, 0x80000, f);
 		fclose(f);
 		if (rret == 0x80000) {
-			SysMessage("Loaded BIOS \"%s\".\n", bios);
+			u32 crc = crc32(0, psxRegs.ptrs.psxR, 0x80000);
+			SysMessage("Loaded BIOS \"%s\" (crc32=%08x).\n", bios, crc);
 			Config.HLE = FALSE;
 			break;
 		}
