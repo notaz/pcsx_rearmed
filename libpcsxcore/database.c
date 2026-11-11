@@ -91,7 +91,7 @@ static const char * const f1_hack_db[] =
 	/* Formula One Arcade */
 	"SCES03886",
 	/* Formula One '99 */
-	"SLUS00870", "SCPS10101", "SCES01979", "SLES01979",
+	"SLUS00870", "SCPS10101", "SCES01979", "SLES01979", "SCES02222",
 	/* Formula One 2000 */
 	"SLUS01134", "SCES02777", "SCES02778", "SCES02779",
 	/* Formula One 2001 */
