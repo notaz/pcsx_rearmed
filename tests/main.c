@@ -476,6 +476,21 @@ static const struct {
     { "cpu_delay1",   cpu_delay1 },
     { "cpu_delay_j0", cpu_delay_j0 },
     { "cpu_delay_j1", cpu_delay_j1 },
+    { "smc_sw_reg",   smc_sw_reg },
+    { "smc_sw_reg_k1", smc_sw_reg_k1 },
+    { "smc_sw_reg_ku", smc_sw_reg_ku },
+    { "smc_sw_c",     smc_sw_c },
+    { "smc_sw_c_k1",  smc_sw_c_k1 },
+    { "smc_sw_c_ku",  smc_sw_c_ku },
+    { "smc_sh",       smc_sh },
+    { "smc_sb",       smc_sb },
+    { "smc_swlr",     smc_swlr },
+    { "smc_swc2",     smc_swc2 },
+    { "smc_multi",    smc_multi },
+    { "smc_many",     smc_many },
+    { "smc_toggle",   smc_toggle },
+    { "smc_exec_k1",  smc_exec_k1 },
+    { "smc_self",     smc_self },
 };
 
 int main()

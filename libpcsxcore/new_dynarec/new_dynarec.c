@@ -982,7 +982,9 @@ static void mark_invalid_code(u_int vaddr, u_int len, char invalid)
       invalid_code[(i|j|0xa0000000u) >> 12] = invalid;
     }
   }
-  if (!invalid && vaddr + len > inv_code_start && vaddr <= inv_code_end)
+  // the no-code range may have been set through a different mirror
+  if (!invalid && pmmask(vaddr) + len > pmmask(inv_code_start)
+      && pmmask(vaddr) <= pmmask(inv_code_end))
     inv_code_start = inv_code_end = ~0;
 }
 
@@ -1825,6 +1827,7 @@ static int invalidate_range(u_int start, u_int end,
       last_block = block;
       blk_end_m = pmmask(block->start + block->len);
       if (blk_end_m <= start_m) {
+        // sets inv_start-inv_end between live neighbor blocks
         inv_start = max(inv_start, blk_end_m);
         continue;
       }
@@ -1892,15 +1895,16 @@ static void ndrc_write_invalidate_many(u_int start, u_int end)
 {
   // this check is done by the caller
   //if (inv_code_start<=addr&&addr<=inv_code_end) { rhits++; return; }
-  int ret = invalidate_range(start, end, &inv_code_start, &inv_code_end);
 #ifdef INV_DEBUG_W
   int invc = invalid_code[start >> 12];
+#endif
+  // the store is always done before do_store_smc_check()
+  int ret = invalidate_range(start, end, &inv_code_start, &inv_code_end);
+#ifdef INV_DEBUG_W
   u_int len = end - start;
-  if (ret)
-    printf("INV ADDR: %08x/%02x hit %d blocks\n", start, len, ret);
-  else
-    printf("INV ADDR: %08x/%02x miss, inv %08x-%08x invc %d->%d\n", start, len,
-      inv_code_start, inv_code_end, invc, invalid_code[start >> 12]);
+  printf("INV ADDR: %08x/%02x hit %d block(s), inv %08x-%08x, invc %d->%d, pc=%08x\n",
+    start, len, ret, inv_code_start, inv_code_end, invc, invalid_code[start >> 12],
+    psxRegs.pc);
   check_for_block_changes(start, end);
 #endif
   stat_inc(stat_inv_addr_calls);
@@ -1909,6 +1913,7 @@ static void ndrc_write_invalidate_many(u_int start, u_int end)
 
 void ndrc_write_invalidate_one(u_int addr)
 {
+  addr &= ~3;
   ndrc_write_invalidate_many(addr, addr + 4);
 }
 
@@ -3581,14 +3586,20 @@ static void do_invstub(struct compile_state *st, int n)
   int ofs_start = stubs[n].c;
   int ofs_end = stubs[n].d;
   int len = ofs_end - ofs_start;
+  u_int pc = st->start + stubs[n].e*4;
   u_int rightr = 0;
 
   literal_pool(20);
-  assem_debug("do_invstub %x\n", st->start + stubs[n].e*4);
+  assem_debug("do_invstub %x\n", pc);
   set_jump_target(stubs[n].addr, out);
   save_regs(reglist);
   if (addrr != 0 || ofs_start != 0)
     emit_addimm(addrr, ofs_start, 0);
+#ifdef INV_DEBUG_W
+  emit_movimm(pc, 2);
+  emit_writeword(2, &psxRegs.pc);
+#endif
+  (void)pc;
   emit_readword(&inv_code_start, 2);
   emit_readword(&inv_code_end, 3);
   if (len != 0)
@@ -3717,10 +3728,15 @@ static void store_assemble(struct compile_state *st, int i,
     do_write_slow(st, i, i_regs, type, NULL, addr_hr, ccadj_, reglist, 1);
 
   if (!inline_slow_io) {
+    if (c && !ram80x_io) {
+      inline_writestub(type, i, saddr_const, i_regs->regmap, dops[i].rs2, ccadj_, reglist);
+      // the smc check must come after the write (invalidate_range() compares
+      // the written data), but inline_writestub() may have clobbered addr_hr
+      if (is_ram_addr(saddr_const))
+        emit_movimm(saddr_const, addr_hr);
+    }
     if (!c || is_ram_addr(saddr_const))
       do_store_smc_check(st, i, i_regs, reglist, addr_hr);
-    if (c && !ram80x_io)
-      inline_writestub(type, i, saddr_const, i_regs->regmap, dops[i].rs2, ccadj_, reglist);
   }
   // basic current block modification detection...
   // not looking back as that should be in mips cache already
