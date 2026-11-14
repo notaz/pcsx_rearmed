@@ -44,6 +44,8 @@ void  pl_force_clear(void);
 
 void  pl_timing_prepare(int is_pal);
 void  pl_frame_limit(void);
+int   pl_inrec_start(const char *fname, int is_playback, int exit_at_end);
+void  pl_inrec_finish(void);
 void  pl_update_layer_size(int w, int h, int fw, int fh);
 
 // for communication with gpulib

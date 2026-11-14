@@ -37,6 +37,7 @@
 #include "../libpcsxcore/r3000a.h"
 #include "../libpcsxcore/psxcounters.h"
 #include "arm_features.h"
+#include "zlib_wrapper.h"
 
 #define HUD_HEIGHT 10
 
@@ -768,6 +769,171 @@ void pl_gun_byte2(int port, unsigned char byte)
 		in_analog_left[port][1] * psx_h / 1024);
 }
 
+/*
+ * input recording and playback, the file has a line of text per event:
+ *   t <type1> <type2>                               pad types (info only)
+ *   i <frame> <keys1> <keys2> <lx> <ly> <rx> <ry>   input change (port1 analogs)
+ *   s <frame> <cycle> <ram_crc32>                   sync check
+ *   e <frame_count>                                 end of the recording
+ * A frame here is a vsync since the start of emulation, so the playback
+ * needs the same start state (like the same -loadf) and settings.
+ */
+#define INREC_SYNC_INTERVAL 600
+
+static struct {
+	FILE *f_rec, *f_play;
+	unsigned int frame;
+	unsigned int sync_errors;
+	int rec_last[6];
+	int play_cur[6];
+	int play_have_input;
+	int play_exit_at_end;
+	unsigned int play_line_frame;
+	char play_line[128];
+} inrec;
+
+// get the next event line, returns 0 if there are none left
+static int inrec_play_read(void)
+{
+	char *l = inrec.play_line;
+	int t[2];
+
+	while (fgets(l, sizeof(inrec.play_line), inrec.f_play)) {
+		if (sscanf(l, "t %d %d", &t[0], &t[1]) == 2
+		    && (t[0] != in_type[0] || t[1] != in_type[1]))
+			SysPrintf("input playback: pad types differ: "
+				"recorded %d %d, current %d %d\n",
+				t[0], t[1], in_type[0], in_type[1]);
+		if ((l[0] == 'i' || l[0] == 's' || l[0] == 'e')
+		    && sscanf(l + 1, "%u", &inrec.play_line_frame) == 1)
+			return 1;
+	}
+	return 0;
+}
+
+static void inrec_play_finish(unsigned int frame)
+{
+	SysPrintf("input playback finished: %u frames, %u sync errors\n",
+		frame, inrec.sync_errors);
+	fclose(inrec.f_play);
+	inrec.f_play = NULL;
+	// no input is possible with -novid, so nothing more to do there either
+	if (inrec.play_exit_at_end || g_novideo)
+		emu_core_ask_exit();
+}
+
+static void inrec_play_frame(unsigned int frame)
+{
+	const char *l = inrec.play_line;
+	int have_line = 1, *v = inrec.play_cur;
+	unsigned int cycle, crc, crc_now;
+
+	if (frame == 0)
+		have_line = inrec_play_read();
+	while (have_line && inrec.play_line_frame <= frame) {
+		switch (l[0]) {
+		case 'i':
+			inrec.play_have_input = sscanf(l, "i %*u %x %x %d %d %d %d",
+				&v[0], &v[1], &v[2], &v[3], &v[4], &v[5]) == 6;
+			break;
+		case 's':
+			if (inrec.play_line_frame != frame
+			    || sscanf(l, "s %*u %u %x", &cycle, &crc) != 2)
+				break;
+			crc_now = crc32(0, (void *)psxRegs.ptrs.psxM, 0x200000);
+			if (crc_now != crc && !inrec.sync_errors++)
+				SysPrintf("input playback: desync at frame %u: "
+					"ram crc %08x, recorded %08x, "
+					"cycle %u, recorded %u\n", frame,
+					crc_now, crc, psxRegs.cycle, cycle);
+			break;
+		case 'e':
+			inrec_play_finish(frame);
+			return;
+		}
+		have_line = inrec_play_read();
+	}
+	if (inrec.play_have_input) {
+		in_keystate[0] = v[0];
+		in_keystate[1] = v[1];
+		in_analog_left[0][0] = v[2];
+		in_analog_left[0][1] = v[3];
+		in_analog_right[0][0] = v[4];
+		in_analog_right[0][1] = v[5];
+	}
+	if (!have_line) // no end marker
+		inrec_play_finish(frame + 1);
+}
+
+static void inrec_rec_frame(unsigned int frame)
+{
+	int v[6] = {
+		in_keystate[0], in_keystate[1],
+		in_analog_left[0][0], in_analog_left[0][1],
+		in_analog_right[0][0], in_analog_right[0][1]
+	};
+	int do_sync = frame % INREC_SYNC_INTERVAL == 0;
+	FILE *f = inrec.f_rec;
+
+	if (frame == 0)
+		fprintf(f, "t %d %d\n", in_type[0], in_type[1]);
+	else if (!do_sync && !memcmp(v, inrec.rec_last, sizeof(v)))
+		return;
+	if (frame == 0 || memcmp(v, inrec.rec_last, sizeof(v))) {
+		fprintf(f, "i %u %04x %04x %d %d %d %d\n", frame,
+			v[0], v[1], v[2], v[3], v[4], v[5]);
+		memcpy(inrec.rec_last, v, sizeof(v));
+	}
+	if (do_sync)
+		fprintf(f, "s %u %u %08x\n", frame, psxRegs.cycle,
+			(unsigned int)crc32(0, (void *)psxRegs.ptrs.psxM, 0x200000));
+	fflush(f);
+}
+
+static void inrec_frame(void)
+{
+	unsigned int frame = inrec.frame++;
+
+	if (inrec.f_play)
+		inrec_play_frame(frame);
+	if (inrec.f_rec)
+		inrec_rec_frame(frame);
+}
+
+// exit_at_end: quit the emulator when the playback ends
+int pl_inrec_start(const char *fname, int is_playback, int exit_at_end)
+{
+	FILE *f = fopen(fname, is_playback ? "r" : "w");
+
+	if (f == NULL) {
+		SysPrintf("input %s: failed to open '%s'\n",
+			is_playback ? "playback" : "recording", fname);
+		return -1;
+	}
+	if (is_playback) {
+		inrec.f_play = f;
+		inrec.play_exit_at_end = exit_at_end;
+	}
+	else {
+		fprintf(f, "# pcsx_rearmed input recording\n");
+		inrec.f_rec = f;
+	}
+	return 0;
+}
+
+void pl_inrec_finish(void)
+{
+	if (inrec.f_rec) {
+		fprintf(inrec.f_rec, "e %u\n", inrec.frame);
+		fclose(inrec.f_rec);
+		inrec.f_rec = NULL;
+	}
+	if (inrec.f_play) {
+		fclose(inrec.f_play);
+		inrec.f_play = NULL;
+	}
+}
+
 #define MAX_LAG_FRAMES 3
 
 #define tvdiff(tv, tv_old) \
@@ -789,6 +955,8 @@ void pl_frame_limit(void)
 	/* doing input here because the pad is polled
 	 * thousands of times per frame for some reason */
 	update_input();
+	if (inrec.f_play || inrec.f_rec)
+		inrec_frame();
 
 	pcnt_end(PCNT_ALL);
 	gettimeofday(&now, 0);
