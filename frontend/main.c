@@ -147,7 +147,6 @@ void emu_set_default_config(void)
 #if defined(MIYOO)
 	pl_rearmed_cbs.dithering = 0;
 	pl_rearmed_cbs.gpu_unai.fast_lighting = 1;
-	pl_rearmed_cbs.gpu_unai.scale_hires = 1;
 #endif
 	ndrc_g.hacks = 0;
 
