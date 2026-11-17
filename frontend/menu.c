@@ -1624,7 +1624,7 @@ static menu_entry e_menu_plugin_options[] =
 #endif
 	mee_enum      ("GPU dithering",                 0, menu_iopts[2], men_gpu_dithering),
 	mee_enum_h    ("SPU plugin",                    0, spu_plugsel, spu_plugins, h_plugin_spu),
-#ifndef C64X_DSP
+#if defined(USE_ASYNC_SPU) && !defined(C64X_DSP)
 	mee_onoff_h   ("SPU multithreading",            MA_OPT_SPU_THREAD, spu_config.iUseThread, 1, h_sputhr),
 #endif
 	mee_handler   ("Configure selected GPU plugin", menu_loop_pluginsel_options),
@@ -1641,7 +1641,7 @@ static int menu_loop_plugin_options(int id, int keys)
 	menu_iopts[0] = Config.SlowBoot;
 	menu_iopts[1] = pl_rearmed_cbs.thread_rendering + 1;
 	menu_iopts[2] = pl_rearmed_cbs.dithering;
-#ifndef C64X_DSP
+#if defined(USE_ASYNC_SPU) && !defined(C64X_DSP)
 	me_enable(e_menu_plugin_options, MA_OPT_SPU_THREAD, pcsxr_sthread_core_count > 1);
 #endif
 
