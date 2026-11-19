@@ -448,6 +448,51 @@ endsprite:
 
 #ifdef __arm__
 
+#ifdef HAVE_ARMV6
+// Sprite lighting depends only on the CLUT entry, so for bigger sprites light
+// the CLUT once and draw with the unlit loop. Not when lighting makes a
+// nonzero entry 0, as the unlit loop takes 0 for transparent, nor when the
+// sprite draws over its own CLUT.
+static bool SpriteOverClut(const le16_t *pPixel, u32 count, s32 lines,
+        const le16_t *clut, int n)
+{
+  intptr_t d = clut - pPixel;
+  intptr_t row = d >= 0 ? d / FRAME_WIDTH : -((-d + FRAME_WIDTH - 1) / FRAME_WIDTH);
+  intptr_t col = d - row * FRAME_WIDTH;
+  if (row >= 0 && row < lines && col < (intptr_t)count)
+    return true;
+  // CLUT running past the row end
+  return col + n > FRAME_WIDTH && row + 1 >= 0 && row + 1 < lines;
+}
+
+static noinline const le16_t *SpriteLitClut(const gpu_unai_inner_t &inn, int bpp)
+{
+  static const u8 idx4[8] = { 0x10, 0x32, 0x54, 0x76, 0x98, 0xba, 0xdc, 0xfe };
+  static u8 idx8[256];
+  static le16_t lut[256] __attribute__((aligned(32)));
+  gpu_unai_inner_t li = inn;
+  int i, n = bpp == 4 ? 16 : 256;
+
+  li.u = 0;
+  li.y0 = 0;
+  li.y1 = 1;
+  li.mask_v00u |= 0xff;
+  memset(lut, 0, n * sizeof(lut[0]));
+  if (bpp == 4)
+    sprite_driver_4bpp_l1_std_asm(lut, idx4, n, &li);
+  else {
+    if (!idx8[255])
+      for (i = 0; i < 256; i++)
+        idx8[i] = i;
+    sprite_driver_8bpp_l1_std_asm(lut, idx8, n, &li);
+  }
+  for (i = 0; i < n; i++)
+    if (!le16_raw(lut[i]) && le16_raw(inn.CBA[i]))
+      return NULL;
+  return lut;
+}
+#endif
+
 template<int CF>
 static void SpriteMaybeAsm(le16_t *pPixel, u32 count, const u8 *pTxt_base,
         const gpu_unai_inner_t &inn)
@@ -471,11 +516,30 @@ static void SpriteMaybeAsm(le16_t *pPixel, u32 count, const u8 *pTxt_base,
     case 0x40: sprite_driver_8bpp_l0_std_asm(pPixel, pTxt, count, &inn); return;
     case 0x42: sprite_driver_8bpp_l0_st0_asm(pPixel, pTxt, count, &inn); return;
 #ifdef HAVE_ARMV6
-    case 0x21: sprite_driver_4bpp_l1_std_asm(pPixel, pTxt, count, &inn); return;
-    case 0x23: sprite_driver_4bpp_l1_st0_asm(pPixel, pTxt, count, &inn); return;
+    case 0x21: case 0x23: case 0x41: case 0x43: {
+      const int bpp = (CF & 0x60) == 0x20 ? 4 : 8;
+      const le16_t *lut;
+      if (count * lines >= (bpp == 4 ? 64u : 1024u)
+          && !SpriteOverClut(pPixel, count, lines, inn.CBA, bpp == 4 ? 16 : 256)
+          && (lut = SpriteLitClut(inn, bpp))) {
+        gpu_unai_inner_t li = inn;
+        li.CBA = (le16_t *)lut;
+        switch (CF) {
+        case 0x21: sprite_driver_4bpp_l0_std_asm(pPixel, pTxt, count, &li); return;
+        case 0x23: sprite_driver_4bpp_l0_st0_asm(pPixel, pTxt, count, &li); return;
+        case 0x41: sprite_driver_8bpp_l0_std_asm(pPixel, pTxt, count, &li); return;
+        case 0x43: sprite_driver_8bpp_l0_st0_asm(pPixel, pTxt, count, &li); return;
+        }
+      }
+      switch (CF) {
+      case 0x21: sprite_driver_4bpp_l1_std_asm(pPixel, pTxt, count, &inn); return;
+      case 0x23: sprite_driver_4bpp_l1_st0_asm(pPixel, pTxt, count, &inn); return;
+      case 0x41: sprite_driver_8bpp_l1_std_asm(pPixel, pTxt, count, &inn); return;
+      case 0x43: sprite_driver_8bpp_l1_st0_asm(pPixel, pTxt, count, &inn); return;
+      }
+      return;
+    }
     case 0x2b: sprite_driver_4bpp_l1_st1_asm(pPixel, pTxt, count, &inn); return;
-    case 0x41: sprite_driver_8bpp_l1_std_asm(pPixel, pTxt, count, &inn); return;
-    case 0x43: sprite_driver_8bpp_l1_st0_asm(pPixel, pTxt, count, &inn); return;
     case 0x4b: sprite_driver_8bpp_l1_st1_asm(pPixel, pTxt, count, &inn); return;
 #endif
     }
