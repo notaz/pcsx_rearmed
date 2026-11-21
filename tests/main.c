@@ -497,13 +497,12 @@ int main()
 {
     struct tstate st = { (u8 *)0x1f800000, 0, };
     int array_012[] = { 0, 1, 2 };
-    register u32 ra asm("ra");
     u8 rirq, buf[16];
     int have_cd;
     int len;
     u32 i;
 
-    printf("started, ra=%x\n", ra);
+    printf("started, ra=%p\n", __builtin_return_address(0));
     printf("irq stat/mask %08x/%08x\n", HW16(st.hw, 0x1070), HW16(st.hw, 0x1074));
     HW32(st.hw, 0x1074) = 0;
     HW16(st.hw, 0x1124) = 0x200; // start counter2, clk/8

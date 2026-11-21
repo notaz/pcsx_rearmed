@@ -9,7 +9,7 @@ jobs:
       matrix:
         include:
         - arch: x86_64
-          runner: ubuntu-24.04
+          runner: ubuntu-latest
           test_args: -nodrc
         - arch: arm64
           runner: ubuntu-24.04-arm
@@ -21,9 +21,12 @@ jobs:
         submodules: true
     - name: Install dependencies
       run: |
-        sudo apt-get update -qq
-        sudo apt-get install -y libsdl1.2-dev libasound2-dev libpng-dev libz-dev
-        sudo apt-get install -y gcc-mipsel-linux-gnu
+        # ubuntu-26.04 runners enable the amd64v3 variant, whose indexes lack
+        # the cross toolchains; fall back to plain amd64 indexes
+        grep -rl 'Architecture-Variants' /etc/apt/apt.conf.d/ | xargs -r sudo rm -vf
+        sudo apt-get update
+        sudo apt-get install -y libsdl1.2-dev libasound2-dev libpng-dev libz-dev \
+          clang binutils-mipsel-linux-gnu
     - name: configure
       run: DUMP_CONFIG_LOG=1 ./configure
     - name: make
