@@ -537,7 +537,6 @@ static void SpriteMaybeAsm(le16_t *pPixel, u32 count, const u8 *pTxt_base,
       case 0x41: sprite_driver_8bpp_l1_std_asm(pPixel, pTxt, count, &inn); return;
       case 0x43: sprite_driver_8bpp_l1_st0_asm(pPixel, pTxt, count, &inn); return;
       }
-      return;
     }
     case 0x2b: sprite_driver_4bpp_l1_st1_asm(pPixel, pTxt, count, &inn); return;
     case 0x4b: sprite_driver_8bpp_l1_st1_asm(pPixel, pTxt, count, &inn); return;
