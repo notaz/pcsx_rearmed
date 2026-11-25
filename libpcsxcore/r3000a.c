@@ -28,6 +28,7 @@
 #include "psxinterpreter.h"
 #include "psxbios.h"
 #include "psxevents.h"
+#include "sio1.h"
 #include "../include/compiler_features.h"
 #include <stddef.h>
 #include <assert.h>
@@ -100,6 +101,7 @@ void psxReset() {
 }
 
 void psxShutdown() {
+	sio1Shutdown();
 	psxBiosShutdown();
 
 	psxCpu->Shutdown();

@@ -1031,6 +1031,35 @@ struct retro_core_option_v2_definition option_defs_us[] = {
       "l1+r1+select"
    },
    {
+      "pcsx_rearmed_link_cable",
+      "Link Cable",
+      NULL,
+      "Emulate the serial port and connect it to a second instance of this core running on the same machine, as two consoles joined by a Link Cable. Start the same game in both instances, set one to 'Console A' and the other to 'Console B', then select the link mode in the game itself. Each instance pauses while the other one is paused. Savestates unplug the cable.",
+      NULL,
+      "system",
+      {
+         { "disabled",  NULL },
+         { "console A", "Console A" },
+         { "console B", "Console B" },
+         { NULL, NULL },
+      },
+      "disabled",
+   },
+   {
+      "pcsx_rearmed_link_timing",
+      "Link Cable Timing",
+      NULL,
+      "'Exact' shows each console the other one's handshake lines as of the very same emulated cycle, which makes the two instances take turns and can be slow. 'Fast' lets them run in parallel; a change of a handshake line then takes 15 microseconds to arrive. Has to be the same in both instances. Takes effect the next time the cable is connected.",
+      NULL,
+      "system",
+      {
+         { "exact", "Exact" },
+         { "fast",  "Fast" },
+         { NULL, NULL },
+      },
+      "exact",
+   },
+   {
       "pcsx_rearmed_multitap",
       "Multitap Mode",
       NULL,

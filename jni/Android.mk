@@ -50,6 +50,9 @@ SOURCES_C := $(CORE_DIR)/cdriso.c \
              $(CORE_DIR)/psxmem.c \
              $(CORE_DIR)/r3000a.c \
              $(CORE_DIR)/sio.c \
+             $(CORE_DIR)/sio1.c \
+             $(CORE_DIR)/sio1_emu.c \
+             $(CORE_DIR)/sio1_link.c \
              $(CORE_DIR)/spu.c \
              $(CORE_DIR)/gpu.c \
              $(CORE_DIR)/gte.c \

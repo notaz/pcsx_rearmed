@@ -5,6 +5,7 @@
 #include "psxdma.h"
 #include "mdec.h"
 #include "psxevents.h"
+#include "sio1.h"
 
 //#define evprintf printf
 #define evprintf(...)
@@ -59,6 +60,7 @@ static irq_func * const irq_funcs[] = {
 	[PSXINT_SPU_UPDATE] = spuUpdate,
 	[PSXINT_SPU_IRQ] = spuDelayedIrq,
 	[PSXINT_RCNT] = psxRcntUpdate,
+	[PSXINT_SIO1] = sio1Interrupt,
 };
 
 void irq_test(psxCP0Regs *cp0)

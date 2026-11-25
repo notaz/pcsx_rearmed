@@ -10,6 +10,7 @@
 #include "../cdrom.h"
 #include "../mdec.h"
 #include "../gpu.h"
+#include "../sio1.h"
 #include "../psxmem_map.h"
 #include "emu_if.h"
 #include "pcsxmem.h"
@@ -89,6 +90,48 @@ static u32 io_read_sio32()
 static void io_write_sio16(u32 value)
 {
 	sioWrite8(value);
+}
+
+/* The link cable port. Handlers are always there as the port can be turned
+ * on while running; off, they do what the plain i/o memory mapping (and
+ * write_mem_ro for SR) did before. */
+static u32 io_sio1_read8(u32 addr)
+{
+	return sio1_active ? sio1HwRead8(addr) : psxHu8(addr);
+}
+
+static u32 io_sio1_read16(u32 addr)
+{
+	return sio1_active ? sio1HwRead16(addr) : psxHu16(addr);
+}
+
+static u32 io_sio1_read32(u32 addr)
+{
+	return sio1_active ? sio1HwRead32(addr) : psxHu32(addr);
+}
+
+static void io_sio1_write8(u32 value)
+{
+	if (sio1_active)
+		sio1HwWrite8(address, value);
+	else if ((address & 0xc) != 4)
+		psxHu8ref(address) = value;
+}
+
+static void io_sio1_write16(u32 value)
+{
+	if (sio1_active)
+		sio1HwWrite16(address, value);
+	else if ((address & 0xc) != 4)
+		psxHu16ref(address) = SWAPu16(value);
+}
+
+static void io_sio1_write32(u32 value)
+{
+	if (sio1_active)
+		sio1HwWrite32(address, value);
+	else if ((address & 0xc) != 4)
+		psxHu32ref(address) = SWAPu32(value);
 }
 
 #if !defined(DRC_DBG) && defined(__arm__)
@@ -521,6 +564,20 @@ void new_dyna_pcsx_mem_init(void)
 		map_item(&mem_iowtab[IOMEM8(i+1)], io_spu_write8_odd, 1);
 		map_item(&mem_iowtab[IOMEM16(i)], io_spu_write16, 1);
 		map_item(&mem_iowtab[IOMEM32(i)], io_spu_write32, 1);
+	}
+
+	// link cable port, see io_sio1_*
+	for (i = 0x1050; i < 0x1060; i++) {
+		map_item(&mem_iortab[IOMEM8(i)], io_sio1_read8, 1);
+		map_item(&mem_iowtab[IOMEM8(i)], io_sio1_write8, 1);
+		if (!(i & 1)) {
+			map_item(&mem_iortab[IOMEM16(i)], io_sio1_read16, 1);
+			map_item(&mem_iowtab[IOMEM16(i)], io_sio1_write16, 1);
+		}
+		if (!(i & 3)) {
+			map_item(&mem_iortab[IOMEM32(i)], io_sio1_read32, 1);
+			map_item(&mem_iowtab[IOMEM32(i)], io_sio1_write32, 1);
+		}
 	}
 
 	// misc

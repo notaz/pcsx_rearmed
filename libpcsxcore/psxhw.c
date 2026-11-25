@@ -26,7 +26,11 @@
 #include "mdec.h"
 #include "cdrom.h"
 #include "gpu.h"
+#include "sio1.h"
 #include "../include/compiler_features.h"
+
+// link cable port, only when the frontend has asked for it
+#define is_sio1(ofs) (unlikely(sio1_active) && ((ofs) & 0xfff0) == 0x1050)
 
 void psxHwReset() {
 	memset(psxRegs.ptrs.psxH, 0, 0x2000);
@@ -35,6 +39,7 @@ void psxHwReset() {
 	mdecInit();
 	cdrReset();
 	sioReset();
+	sio1Reset();
 	psxRcntInit();
 	HW_GPU_STATUS = SWAP32(0x10802000);
 
@@ -165,6 +170,9 @@ u8 psxHwRead8(psxRegisters *regs, u32 add) {
 	u32 ofs = add & 0xffff;
 	u8 hard;
 
+	if (is_sio1(ofs))
+		return sio1HwRead8(ofs);
+
 	switch (ofs) {
 	case 0x1040: hard = sioRead8(); break;
 	case 0x1800: hard = cdrRead0(); break;
@@ -227,6 +235,9 @@ u16 psxHwRead16(psxRegisters *regs, u32 add) {
 	u32 ofs = add & 0xffff;
 	u16 hard;
 
+	if (is_sio1(ofs))
+		return sio1HwRead16(ofs);
+
 	switch (ofs) {
 	case 0x1040: hard = sioRead8(); break;
 	//case 0x1044: hard = sioReadStat16(); break;
@@ -275,6 +286,9 @@ u32 psxHwRead32(psxRegisters *regs, u32 add) {
 	u32 ofs = add & 0xffff;
 	u32 hard;
 
+	if (is_sio1(ofs))
+		return sio1HwRead32(ofs);
+
 	switch (ofs) {
 	case 0x1040: hard = sioRead8(); break;
 	//case 0x1044: hard = sioReadStat16(); break;
@@ -314,6 +328,12 @@ u32 psxHwRead32(psxRegisters *regs, u32 add) {
 
 void psxHwWrite8(psxRegisters *regs, u32 add, u32 value) {
 	u32 ofs = add & 0xffff;
+
+	if (is_sio1(ofs)) {
+		sio1HwWrite8(ofs, value);
+		return;
+	}
+
 	switch (ofs) {
 	case 0x1040: sioWrite8(value); return;
 	case 0x10f6:
@@ -348,6 +368,12 @@ void psxHwWrite8(psxRegisters *regs, u32 add, u32 value) {
 
 void psxHwWrite16(psxRegisters *regs, u32 add, u32 value) {
 	u32 ofs = add & 0xffff;
+
+	if (is_sio1(ofs)) {
+		sio1HwWrite16(ofs, value);
+		return;
+	}
+
 	switch (ofs) {
 	case 0x1040: sioWrite8(value); return;
 	case 0x1048: sioWriteMode16(value); return;
@@ -424,6 +450,12 @@ void psxHwWrite16(psxRegisters *regs, u32 add, u32 value) {
 
 void psxHwWrite32(psxRegisters *regs, u32 add, u32 value) {
 	u32 ofs = add & 0xffff;
+
+	if (is_sio1(ofs)) {
+		sio1HwWrite32(ofs, value);
+		return;
+	}
+
 	switch (ofs) {
 	case 0x1040: sioWrite8(value); return;
 	case 0x1048: log_unhandled("w32 %08x %08x @%08x\n", add, value, regs->pc);

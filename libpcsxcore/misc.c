@@ -33,6 +33,7 @@
 #include "gpu.h"
 #include "ppf.h"
 #include "psxbios.h"
+#include "sio1.h"
 #include "database.h"
 #include "zlib_wrapper.h"
 #include "revision.h"
@@ -867,6 +868,7 @@ int SaveState(const char *file) {
 	mdecFreeze(f, 1);
 	ndrc_freeze(f, 1);
 	padFreeze(f, 1);
+	sio1Freeze(f, 1); // has to stay last, see sio1_emu.c
 
 	memset(misc, 0xff, sizeof(*misc));
 	SaveFuncs.close(f);
@@ -994,6 +996,7 @@ int LoadState(const char *file) {
 	}
 	ndrc_freeze(f, 0);
 	padFreeze(f, 0);
+	sio1Freeze(f, 0);
 
 	events_restore();
 	if (Config.HLE)

@@ -38,6 +38,7 @@
 #include "../libpcsxcore/r3000a.h"
 #include "../libpcsxcore/gpu.h"
 #include "../libpcsxcore/sio.h"
+#include "../libpcsxcore/sio1.h"
 #include "../libpcsxcore/database.h"
 #include "../plugins/dfsound/out.h"
 #include "../plugins/dfsound/spu_config.h"
@@ -1193,6 +1194,50 @@ static void update_multitap(void)
       SysPrintf("multitap: %d %d\n", multitap1, multitap2);
       padChanged();
    }
+}
+
+static void show_notification(const char *msg_str,
+      unsigned duration_ms, unsigned priority, enum retro_log_level level);
+
+static void update_link_cable(void)
+{
+   static int mode_old = SIO1_LINK_OFF, delay_old = -1;
+   struct retro_variable var;
+   int mode = SIO1_LINK_OFF, delay = 0;
+
+   var.value = NULL;
+   var.key = "pcsx_rearmed_link_cable";
+   if (environ_cb && (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value))
+   {
+      if (strcmp(var.value, "console A") == 0)
+         mode = SIO1_LINK_CONSOLE_A;
+      else if (strcmp(var.value, "console B") == 0)
+         mode = SIO1_LINK_CONSOLE_B;
+      else if (strcmp(var.value, "loopback") == 0) // for tests, not listed
+         mode = SIO1_LINK_LOOPBACK;
+   }
+
+   var.value = NULL;
+   var.key = "pcsx_rearmed_link_timing";
+   if (environ_cb && (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value))
+   {
+      // more than the link's grid step plus the longest block the cpu
+      // cores run without checking for events
+      if (strcmp(var.value, "fast") == 0)
+         delay = 512;
+   }
+
+   if (delay != delay_old)
+      sio1SetLinkTiming(delay);
+   if (mode != mode_old)
+   {
+      // more than one pair on a machine: PCSX_SIO1_LINK_NAME tells them apart
+      if (sio1SetLinkMode(mode, getenv("PCSX_SIO1_LINK_NAME")) != 0)
+         show_notification("Link Cable: could not set up the link, see the log",
+               3000, 2, RETRO_LOG_WARN);
+   }
+   mode_old = mode;
+   delay_old = delay;
 }
 
 void retro_set_controller_port_device(unsigned port, unsigned device)
@@ -2358,6 +2403,7 @@ static void update_variables(bool in_flight)
    }
 
    update_multitap();
+   update_link_cable();
 
    var.value = NULL;
    var.key = "pcsx_rearmed_negcon_deadzone";

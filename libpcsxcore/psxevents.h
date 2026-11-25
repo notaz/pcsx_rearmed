@@ -19,6 +19,7 @@ enum {
 	PSXINT_CDRLID,       // cdrLidSeekInterrupt
 	PSXINT_IRQ10,        // irq10Interrupt
 	PSXINT_SPU_UPDATE,   // spuUpdate
+	PSXINT_SIO1,         // sio1Interrupt
 	PSXINT_COUNT
 };
 
